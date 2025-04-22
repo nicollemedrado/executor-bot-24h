@@ -3,7 +3,6 @@ import requests
 import time
 import datetime
 
-
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
@@ -14,7 +13,9 @@ def enviar_mensagem(mensagem):
         "text": mensagem,
         "parse_mode": "HTML"
     }
-    requests.post(url, data=payload)
+    response = requests.post(url, data=payload)
+    print("Mensagem enviada:", mensagem)
+    print("Resposta do Telegram:", response.status_code, response.text)
 
 def buscar_sinais():
     try:
@@ -35,13 +36,21 @@ def buscar_sinais():
                 time.sleep(1)
 
     except Exception as e:
-        print("Erro:", e)
+        print("Erro ao buscar sinais:", e)
 
 def iniciar_bot():
+    print("🔄 Iniciando bot Executor 24h...")
+
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+        print("❌ Variáveis de ambiente não definidas!")
+        return
+
+    enviar_mensagem("✅ Bot Executor 24h INICIADO com sucesso.\nAnálise começando agora...")
+
     while True:
-        print("Analisando o mercado em tempo real...")
+        print("🔍 Analisando o mercado em tempo real...")
         buscar_sinais()
-        print("Aguardando 10 minutos para próxima análise...")
+        print("⏳ Aguardando 10 minutos para próxima análise...\n")
         time.sleep(600)
 
 iniciar_bot()
