@@ -14,14 +14,13 @@ app = Flask(__name__)
 # CONFIGURAÇÕES DO SISTEMA
 # =========================
 ATIVOS = [
-    "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "EURJPY",
-    "BTCUSD", "ETHUSD", "TSLA", "AAPL", "AMZN"
+    "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "EURJPY"
 ]
 VALOR_BANCA_INICIAL = 100.0  # Altere conforme sua banca
 ENTRADA_PORCENTAGEM = 0.02   # 2% da banca
 STOP_WIN = 0.10              # Meta diária de lucro: 10% da banca
 STOP_LOSS = 0.05             # Limite diário de perda: 5% da banca
-INTERVALO_ANALISE = 600      # 10 minutos
+INTERVALO_ANALISE = 180      # 3 minutos para testes
 
 banca_atual = VALOR_BANCA_INICIAL
 lucro_dia = 0.0
@@ -51,17 +50,12 @@ def nome_formatado(simbolo):
         "USDCHF": "Dólar / Franco",
         "AUDUSD": "Dólar Australiano",
         "USDCAD": "Dólar / Canadense",
-        "EURJPY": "Euro / Iene",
-        "BTCUSD": "Bitcoin",
-        "ETHUSD": "Ethereum",
-        "TSLA": "Tesla",
-        "AAPL": "Apple",
-        "AMZN": "Amazon"
+        "EURJPY": "Euro / Iene"
     }
     return nomes.get(simbolo, simbolo)
 
 def simular_analise(simbolo):
-    agora = (datetime.datetime.utcnow() - datetime.timedelta(hours=3)).strftime("%H:%M")
+    agora = (datetime.datetime.utcnow() - datetime.timedelta(hours=3) + datetime.timedelta(minutes=2)).strftime("%H:%M")
     preco = round(100 + (datetime.datetime.now().second % 10), 2)
     tendencia = "STRONG_BUY" if preco % 2 == 0 else "STRONG_SELL"
     entrada = round(banca_atual * ENTRADA_PORCENTAGEM, 2)
@@ -79,7 +73,7 @@ def simular_analise(simbolo):
         mensagem = (
             f"⚡ <b>SINAL AO VIVO</b>\n\n"
             f"🪙 Ativo: <b>{nome_formatado(simbolo)} ({simbolo})</b>\n"
-            f"⏰ Horário: <b>{agora}</b>\n"
+            f"⏰ Entrar às: <b>{agora}</b>\n"
             f"📊 Direção: <b>{direcao}</b>\n"
             f"💰 Entrada: R$ {entrada}\n"
             f"⌛ Expiração: 5 minutos\n"
