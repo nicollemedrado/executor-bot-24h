@@ -8,7 +8,7 @@ from flask import Flask
 app = Flask(__name__)
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+TELEGRAM_CHAT_ID = "@SalaFantasmaBR"  # Canal fixo
 
 def enviar_mensagem(mensagem):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -71,7 +71,7 @@ def loop_sinais():
                         f"<b>Status:</b> ✅ Entrada Forte Detectada\n"
                         f"☑️ <i>Prepare-se para operar!</i>"
                     )
-                else:  # Entrada fraca
+                else:
                     mensagem = (
                         f"📉 <b>SEM ENTRADA RECOMENDADA</b>\n"
                         f"<b>Ativo:</b> {nome} ({simbolo})\n"
@@ -89,7 +89,6 @@ def loop_sinais():
 def index():
     return "✅ Bot Executor está rodando com análise de sinais 24h."
 
-# Inicia thread de monitoramento
 threading.Thread(target=loop_sinais, daemon=True).start()
 
 if __name__ == '__main__':
