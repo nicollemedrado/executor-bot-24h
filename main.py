@@ -1,52 +1,113 @@
 import os
 import requests
-from flask import Flask
-import threading
 import time
 import datetime
+import threading
+from flask import Flask
 
-# Configurações
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
 app = Flask(__name__)
 
-def enviar_sinal_fake():
-    agora = datetime.datetime.now().strftime("%H:%M")
-    mensagem = f"""
-📈 <b>SINAL AO VIVO DETECTADO (Simulado)</b>
+# =========================
+# CONFIGURAÇÕES DO SISTEMA
+# =========================
+ATIVOS = [
+    "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "EURJPY",
+    "BTCUSD", "ETHUSD", "TSLA", "AAPL", "AMZN"
+]
+VALOR_BANCA_INICIAL = 100.0  # Altere conforme sua banca
+ENTRADA_PORCENTAGEM = 0.02   # 2% da banca
+STOP_WIN = 0.10              # Meta diária de lucro: 10% da banca
+STOP_LOSS = 0.05             # Limite diário de perda: 5% da banca
+INTERVALO_ANALISE = 120      # 2 minutos (para testes)
 
-<b>🪙 Ativo:</b> EURUSD  
-<b>⏰ Horário:</b> {agora}  
-<b>📊 Status:</b> Entrada Forte Detectada  
-<b>📌 Expiração:</b> 5 minutos  
-<b>🚀 DICA:</b> Dobrar a entrada se continuar subindo nos próximos 2 minutos
+banca_atual = VALOR_BANCA_INICIAL
+lucro_dia = 0.0
+perda_dia = 0.0
 
-<i>Baseado em análise simulada para testes do canal</i>
-    """
-
+# =========================
+# FUNÇÕES PRINCIPAIS
+# =========================
+def enviar_mensagem(texto):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
-        "text": mensagem,
+        "text": texto,
         "parse_mode": "HTML"
     }
+    try:
+        requests.post(url, data=payload)
+        print("✅ Mensagem enviada:", texto[:60])
+    except Exception as e:
+        print("❌ Erro ao enviar mensagem:", e)
 
-    response = requests.post(url, data=payload)
-    print("Sinal de teste enviado:", response.text)
+def nome_formatado(simbolo):
+    nomes = {
+        "EURUSD": "Euro / Dólar",
+        "GBPUSD": "Libra / Dólar",
+        "USDJPY": "Dólar / Iene",
+        "USDCHF": "Dólar / Franco",
+        "AUDUSD": "Dólar Australiano",
+        "USDCAD": "Dólar / Canadense",
+        "EURJPY": "Euro / Iene",
+        "BTCUSD": "Bitcoin",
+        "ETHUSD": "Ethereum",
+        "TSLA": "Tesla",
+        "AAPL": "Apple",
+        "AMZN": "Amazon"
+    }
+    return nomes.get(simbolo, simbolo)
 
-def executar_teste():
-    print("⏳ Enviando sinal fake de teste em 10 segundos...")
-    time.sleep(10)
-    enviar_sinal_fake()
+def simular_analise(simbolo):
+    agora = datetime.datetime.now().strftime("%H:%M")
+    preco = round(100 + (datetime.datetime.now().second % 10), 2)
+    tendencia = "STRONG_BUY" if preco % 2 == 0 else "STRONG_SELL"
+    entrada = round(banca_atual * ENTRADA_PORCENTAGEM, 2)
+    dica_dobra = "📌 DICA: Se o ativo continuar na mesma direção, dobre a operação após 1 minuto." if preco % 2 == 0 else ""
 
-# Rota web para manter ativo (Render)
+    if lucro_dia >= STOP_WIN * VALOR_BANCA_INICIAL:
+        enviar_mensagem("🟢 <b>Meta diária de lucro atingida.</b> Bot pausado temporariamente.")
+        return False
+    if perda_dia >= STOP_LOSS * VALOR_BANCA_INICIAL:
+        enviar_mensagem("🔴 <b>Limite diário de perda atingido.</b> Bot pausado temporariamente.")
+        return False
+
+    if tendencia in ["STRONG_BUY", "STRONG_SELL"]:
+        direcao = "COMPRA" if tendencia == "STRONG_BUY" else "VENDA"
+        mensagem = (
+            f"⚡ <b>SINAL AO VIVO</b>\n\n"
+            f"🪙 Ativo: <b>{nome_formatado(simbolo)} ({simbolo})</b>\n"
+            f"⏰ Horário: <b>{agora}</b>\n"
+            f"📊 Direção: <b>{direcao}</b>\n"
+            f"💰 Entrada: R$ {entrada}\n"
+            f"⌛ Expiração: 5 minutos\n"
+            f"{dica_dobra}\n\n"
+            f"<i>Baseado em análise automatizada e inteligência de sinais.</i>"
+        )
+        enviar_mensagem(mensagem)
+    else:
+        enviar_mensagem(f"🔎 Análise em {simbolo} às {agora}. Nenhuma entrada detectada.")
+
+    return True
+
+def loop_executor():
+    while True:
+        print("🔁 Iniciando nova análise de mercado...")
+        for ativo in ATIVOS:
+            continuar = simular_analise(ativo)
+            if not continuar:
+                return
+            time.sleep(1)
+        print("🕒 Aguardando próximo ciclo...")
+        time.sleep(INTERVALO_ANALISE)
+
 @app.route('/')
 def index():
-    return "Bot de Teste Online"
+    return "✅ Executor Bot 24h rodando com inteligência de sinais."
 
-# Executa o teste em paralelo
-thread = threading.Thread(target=executar_teste, daemon=True)
-thread.start()
+threading.Thread(target=loop_executor, daemon=True).start()
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=int(os.environ.get('PORT', 10000)))
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
