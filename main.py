@@ -36,8 +36,9 @@ def enviar_mensagem(mensagem):
     }
     try:
         requests.post(url, data=payload)
+        print("✅ Mensagem enviada:", mensagem[:60])
     except Exception as e:
-        print("Erro ao enviar mensagem:", e)
+        print("❌ Erro ao enviar mensagem:", e)
 
 def analisar_mercado(simbolo):
     handler = TA_Handler(
@@ -48,8 +49,7 @@ def analisar_mercado(simbolo):
     )
     try:
         analise = handler.get_analysis()
-        recomendacao = analise.summary["RECOMMENDATION"]
-        return recomendacao
+        return analise.summary["RECOMMENDATION"]
     except Exception as e:
         print(f"Erro ao analisar {simbolo}:", e)
         return None
@@ -59,10 +59,7 @@ def simular_analise(simbolo):
     agora = datetime.datetime.now().strftime("%H:%M")
     recomendacao = analisar_mercado(simbolo)
 
-    if not recomendacao:
-        return False
-
-    if recomendacao not in ["STRONG_BUY", "STRONG_SELL"]:
+    if not recomendacao or recomendacao not in ["STRONG_BUY", "STRONG_SELL"]:
         return False
 
     direcao = "COMPRA" if recomendacao == "STRONG_BUY" else "VENDA"
@@ -87,7 +84,7 @@ def simular_analise(simbolo):
         f"<i>Baseado em análise real via TradingView.</i>"
     )
     enviar_mensagem(mensagem)
-    lucro_dia += entrada * 0.85  # simula lucro
+    lucro_dia += entrada * 0.85
     return True
 
 # =========================
@@ -100,7 +97,7 @@ def iniciar_bot():
         for ativo in ATIVOS:
             if simular_analise(ativo):
                 sinal_detectado = True
-                time.sleep(2)  # intervalo entre sinais
+                time.sleep(2)
         if not sinal_detectado:
             enviar_mensagem("🕵️ Nenhum sinal forte detectado. O sistema segue monitorando...")
         print("⏳ Aguardando próxima análise...")
