@@ -21,7 +21,7 @@ VALOR_BANCA_INICIAL = 100.0  # Altere conforme sua banca
 ENTRADA_PORCENTAGEM = 0.02   # 2% da banca
 STOP_WIN = 0.10              # Meta diária de lucro: 10% da banca
 STOP_LOSS = 0.05             # Limite diário de perda: 5% da banca
-INTERVALO_ANALISE = 120      # 2 minutos (para testes)
+INTERVALO_ANALISE = 600      # 10 minutos
 
 banca_atual = VALOR_BANCA_INICIAL
 lucro_dia = 0.0
@@ -61,7 +61,7 @@ def nome_formatado(simbolo):
     return nomes.get(simbolo, simbolo)
 
 def simular_analise(simbolo):
-    agora = datetime.datetime.now().strftime("%H:%M")
+    agora = (datetime.datetime.utcnow() - datetime.timedelta(hours=3)).strftime("%H:%M")
     preco = round(100 + (datetime.datetime.now().second % 10), 2)
     tendencia = "STRONG_BUY" if preco % 2 == 0 else "STRONG_SELL"
     entrada = round(banca_atual * ENTRADA_PORCENTAGEM, 2)
