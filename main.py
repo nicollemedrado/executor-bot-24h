@@ -56,7 +56,8 @@ def analisar_ativo(simbolo):
         tendencia = analise.summary["RECOMMENDATION"]
         forca = analise.summary.get("BUY") if tendencia == "STRONG_BUY" else analise.summary.get("SELL")
         estrelas = min(int(forca), 5)
-        agora = (datetime.utcnow() - timedelta(hours=3)).strftime("%H:%M")
+        agora = datetime.utcnow() - timedelta(hours=3)
+        entrada_em = (agora + timedelta(minutes=2)).strftime("%H:%M")  # 2 minutos de antecedência
         entrada = round(banca_atual * PORCENTAGEM_ENTRADA, 2)
 
         if lucro_dia >= STOP_WIN * BANCA_INICIAL:
@@ -73,7 +74,7 @@ def analisar_ativo(simbolo):
             mensagem = (
                 f"⚡ <b>SINAL AO VIVO</b>\n\n"
                 f"💱 Ativo: <b>{simbolo}</b>\n"
-                f"⏰ Entrada às: <b>{agora}</b>\n"
+                f"⏰ Entrada às: <b>{entrada_em}</b>\n"
                 f"📊 Direção: <b>{direcao}</b>\n"
                 f"💸 Valor: R$ {entrada}\n"
                 f"⌛ Expiração: 5 minutos\n"
