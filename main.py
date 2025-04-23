@@ -2,19 +2,27 @@ import os
 import requests
 import time
 from datetime import datetime, timedelta
+from tradingview_ta import TA_Handler, Interval, Exchange
 
-# Pegando os dados do ambiente
+# ====== Configuração via variáveis de ambiente ======
 TELEGRAM_TOKEN = os.getenv("TOKEN_TELEGRAM")
 TELEGRAM_CHAT_ID = os.getenv("TOKEN_TELEGRAM_ID")
 
-# Lista de moedas
-ATIVOS = ["EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "EURJPY"]
-
-# Configuração da banca
+# ====== Configurações Gerais ======
+ATIVOS = [
+    "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "EURJPY"
+]
 BANCA_INICIAL = 100.0
 PORCENTAGEM_ENTRADA = 0.02
+STOP_WIN = 0.10  # 10%
+STOP_LOSS = 0.05  # 5%
 INTERVALO_ANALISE = 600  # 10 minutos
 
+banca_atual = BANCA_INICIAL
+lucro_dia = 0.0
+perda_dia = 0.0
+
+# ====== Função de envio de mensagem Telegram ======
 def enviar_mensagem(mensagem):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
@@ -24,43 +32,74 @@ def enviar_mensagem(mensagem):
     }
     try:
         requests.post(url, data=payload)
-        print(f"[✅] Mensagem enviada: {mensagem[:60]}")
     except Exception as e:
-        print(f"[❌] Erro ao enviar: {e}")
+        print("Erro ao enviar mensagem:", e)
 
-def gerar_sinal(ativo):
-    horario_brasil = (datetime.utcnow() - timedelta(hours=3)).strftime("%H:%M")
-    direcao = "COMPRA" if int(time.time()) % 2 == 0 else "VENDA"
-    valor_entrada = round(BANCA_INICIAL * PORCENTAGEM_ENTRADA, 2)
+# ====== Função principal de análise ======
+def analisar_ativo(simbolo):
+    global banca_atual, lucro_dia, perda_dia
 
-    mensagem = (
-        f"⚡ <b>SINAL AO VIVO</b>\n\n"
-        f"🪙 Ativo: <b>{ativo}</b>\n"
-        f"⏰ Horário: <b>{horario_brasil}</b>\n"
-        f"📊 Direção: <b>{direcao}</b>\n"
-        f"💰 Entrada: R$ {valor_entrada}\n"
-        f"⌛ Expiração: 5 minutos\n\n"
-        f"<i>Baseado em simulação de sinais automatizados.</i>"
+    handler = TA_Handler(
+        symbol=simbolo,
+        screener="forex",
+        exchange="FX_IDC",
+        interval=Interval.INTERVAL_5_MINUTES
     )
 
-    enviar_mensagem(mensagem)
+    try:
+        analise = handler.get_analysis()
+        tendencia = analise.summary["RECOMMENDATION"]
+        forca = analise.summary.get("BUY") if tendencia == "STRONG_BUY" else analise.summary.get("SELL")
+        estrelas = min(int(forca), 5)
+        agora = (datetime.utcnow() - timedelta(hours=3)).strftime("%H:%M")
+        entrada = round(banca_atual * PORCENTAGEM_ENTRADA, 2)
 
+        if lucro_dia >= STOP_WIN * BANCA_INICIAL:
+            enviar_mensagem("🟢 <b>Meta de lucro atingida!</b> Operações pausadas por hoje.")
+            return
+
+        if perda_dia >= STOP_LOSS * BANCA_INICIAL:
+            enviar_mensagem("🔴 <b>Limite de perda alcançado!</b> Operações pausadas por hoje.")
+            return
+
+        if tendencia in ["STRONG_BUY", "STRONG_SELL"]:
+            direcao = "COMPRA" if tendencia == "STRONG_BUY" else "VENDA"
+            dica_dobra = "📌 DICA: Se continuar forte, dobre a próxima entrada." if estrelas >= 4 else ""
+            mensagem = (
+                f"⚡ <b>SINAL AO VIVO</b>\n\n"
+                f"💱 Ativo: <b>{simbolo}</b>\n"
+                f"⏰ Entrada às: <b>{agora}</b>\n"
+                f"📊 Direção: <b>{direcao}</b>\n"
+                f"💸 Valor: R$ {entrada}\n"
+                f"⌛ Expiração: 5 minutos\n"
+                f"⭐ Força: {'⭐' * estrelas}\n"
+                f"{dica_dobra}\n\n"
+                f"<i>Baseado em análise real do mercado via TradingView.</i>"
+            )
+            enviar_mensagem(mensagem)
+            print("Sinal enviado para", simbolo)
+            return
+
+        print("[INFO] Nenhum sinal forte para:", simbolo)
+
+    except Exception as e:
+        print("Erro em", simbolo, ":", e)
+
+# ====== Loop principal de execução ======
 def executar_bot():
     while True:
-        print("🔁 Analisando mercado...")
-        sinais_encontrados = False
+        print("Iniciando análise...")
+        houve_sinal = False
 
         for ativo in ATIVOS:
-            gerar_sinal(ativo)
-            sinais_encontrados = True
-            time.sleep(2)  # Tempo entre sinais
+            analisar_ativo(ativo)
+            time.sleep(2)
 
-        if not sinais_encontrados:
-            enviar_mensagem("🔎 Nenhum sinal encontrado no momento. Bot continuará analisando...")
+        if not houve_sinal:
+            enviar_mensagem("🔎 Analisando mercado... Nenhum sinal forte detectado.")
 
-        print("⏱️ Aguardando 10 minutos para nova análise...\n")
         time.sleep(INTERVALO_ANALISE)
 
-# Início do bot
+# ====== Início ======
 if __name__ == '__main__':
     executar_bot()
