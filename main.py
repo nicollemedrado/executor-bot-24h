@@ -2,106 +2,100 @@ import os
 import requests
 import time
 import datetime
+import threading
 from tradingview_ta import TA_Handler, Interval, Exchange
 
-# =========================
+# ============================
 # CONFIGURAÇÕES DO BOT
-# =========================
-TELEGRAM_TOKEN = "7810390855:AAGAUM-z_m4xMSvpF446ITLwujX_aHhTW68"
-TELEGRAM_CHAT_ID = "-1002692489256"
+# ============================
+TOKEN_TELEGRAM = "7810390855:AAGAUM-z_m4xMSvpF446ITLwujX_aHhTW68"
+TOKEN_TELEGRAM_ID = "-1002692489256"
+VALOR_BANCA_INICIAL = 100.0
+ENTRADA_PORCENTAGEM = 0.02
+INTERVALO_ANALISE = 600  # 10 minutos
+STOP_WIN = 0.20  # 20% lucro
+STOP_LOSS = 0.10  # 10% prejuízo
 
-# Lista completa de pares de moedas da Pocket Option (exemplos — adicione mais conforme necessário)
+banca_atual = VALOR_BANCA_INICIAL
+lucro_dia = 0.0
+perda_dia = 0.0
+ULTIMO_ENVIO = 0
+
 ATIVOS = [
-    "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "EURJPY", "NZDUSD",
-    "EURGBP", "EURCAD", "GBPCAD", "GBPJPY", "AUDJPY", "AUDCAD", "CHFJPY", "NZDJPY",
-    "CADJPY", "AUDNZD", "EURNZD", "GBPAUD", "GBPNZD", "USDNOK", "USDSEK", "USDHKD"
+    "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD",
+    "EURJPY", "NZDUSD", "GBPJPY", "EURGBP", "BTCUSD", "ETHUSD"
 ]
 
-VALOR_BANCA = 100.0
-PORCENTAGEM_ENTRADA = 0.02  # 2% da banca
-INTERVALO_ANALISE = 600  # 10 minutos
-
-# =========================
+# ============================
 # FUNÇÕES
-# =========================
-def enviar_mensagem(texto):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+# ============================
+def enviar_telegram(mensagem):
+    url = f"https://api.telegram.org/bot{TOKEN_TELEGRAM}/sendMessage"
     payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": texto,
+        "chat_id": TOKEN_TELEGRAM_ID,
+        "text": mensagem,
         "parse_mode": "HTML"
     }
     try:
         requests.post(url, data=payload)
-        print("✅ Mensagem enviada")
+        print("Enviado:", mensagem[:60])
     except Exception as e:
-        print("❌ Erro ao enviar mensagem:", e)
+        print("Erro ao enviar mensagem:", e)
 
 def analisar_ativo(simbolo):
+    handler = TA_Handler(
+        symbol=simbolo,
+        exchange="OANDA",
+        screener="forex",
+        interval=Interval.INTERVAL_1_MINUTE
+    )
     try:
-        handler = TA_Handler(
-            symbol=simbolo,
-            exchange="FX_IDC",
-            screener="forex",
-            interval=Interval.INTERVAL_5_MINUTES
-        )
         analise = handler.get_analysis()
-        rsi = analise.indicators.get("RSI", 50)
         recomendacao = analise.summary["RECOMMENDATION"]
-        estrelas = "⭐" * analise.summary.get("BUY", 0) if recomendacao == "BUY" else "⭐" * analise.summary.get("SELL", 0)
+        rsi = analise.indicators["RSI"]
+        return recomendacao, round(rsi, 2)
+    except:
+        return None, None
 
-        agora = (datetime.datetime.utcnow() - datetime.timedelta(hours=3)).strftime("%H:%M")
-        entrada = round(VALOR_BANCA * PORCENTAGEM_ENTRADA, 2)
+def calcular_entrada():
+    return round(banca_atual * ENTRADA_PORCENTAGEM, 2)
 
-        if recomendacao in ["STRONG_BUY", "STRONG_SELL"]:
-            direcao = "COMPRA" if recomendacao == "STRONG_BUY" else "VENDA"
-            clique_msg = "🟢 Clique 1 vez." if rsi < 60 and rsi > 40 else "⚠️ Clique 2 ou mais vezes se a força continuar."
-            tendencia = "Alta" if rsi > 70 else "Baixa" if rsi < 30 else "Neutra"
+def gerar_sinal():
+    global lucro_dia, perda_dia, banca_atual, ULTIMO_ENVIO
+    agora = time.time()
+
+    if agora - ULTIMO_ENVIO < INTERVALO_ANALISE:
+        return
+
+    for ativo in ATIVOS:
+        direcao, rsi = analisar_ativo(ativo)
+        if direcao in ["STRONG_BUY", "STRONG_SELL"]:
+            horario = datetime.datetime.now().strftime("%H:%M")
+            entrada = calcular_entrada()
+            direcao_txt = "COMPRA" if direcao == "STRONG_BUY" else "VENDA"
+            cliques = "CLIQUE APENAS UMA VEZ (sinal forte)" if rsi >= 50 else "CLIQUE APENAS UMA VEZ (sinal fraco)"
 
             mensagem = (
-                f"<b>SINAL AO VIVO</b>
-
-"
-                f"🧭 Par: <b>{simbolo}</b>
-"
-                f"📈 Direção: <b>{direcao}</b>
-"
-                f"💸 Entrada sugerida: <b>R$ {entrada}</b>
-"
-                f"⏰ Entrar às: <b>{agora}</b>
-"
-                f"⌛ Expiração: <b>5 minutos</b>
-"
-                f"🔍 RSI: <b>{rsi:.2f} ({tendencia})</b>
-"
-                f"{clique_msg}
-"
-                f"{estrelas}
-
-"
-                f"<i>Baseado em análise ao vivo via TradingView.</i>"
+                f"<b>⚡ SINAL AO VIVO</b>\n"
+                f"<b>🌐 Par:</b> {ativo}\n"
+                f"<b>🔄 Direção:</b> {direcao_txt}\n"
+                f"<b>🔢 RSI:</b> {rsi}\n"
+                f"<b>💵 Entrada sugerida:</b> R$ {entrada}\n"
+                f"<b>⏰ Entrada:</b> {horario}\n"
+                f"<b>⏳ Expiração:</b> 5 minutos\n"
+                f"⚠ {cliques}\n\n"
+                f"<i>Análise com base em TradingView 🔍</i>"
             )
-            enviar_mensagem(mensagem)
-            return True
-    except Exception as e:
-        print(f"Erro em {simbolo}: {e}")
-    return False
+            enviar_telegram(mensagem)
+            ULTIMO_ENVIO = agora
+            time.sleep(120)
+            break
+    else:
+        enviar_telegram("🔄 Analisando o mercado...")
 
-# =========================
-# LOOP DO BOT
-# =========================
-while True:
-    print("🔁 Verificando sinais...")
-    sinal_encontrado = False
-    for par in ATIVOS:
-        resultado = analisar_ativo(par)
-        if resultado:
-            sinal_encontrado = True
-            time.sleep(2)
+def loop():
+    while True:
+        gerar_sinal()
+        time.sleep(60)
 
-    if not sinal_encontrado:
-        agora = (datetime.datetime.utcnow() - datetime.timedelta(hours=3)).strftime("%H:%M")
-        enviar_mensagem(f"⚪ Nenhum sinal forte identificado às <b>{agora}</b>. Monitorando o mercado ao vivo...")
-
-    print("⏳ Aguardando próximo ciclo de análise...")
-    time.sleep(INTERVALO_ANALISE)
+threading.Thread(target=loop).start()
