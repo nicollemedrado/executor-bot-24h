@@ -14,13 +14,15 @@ app = Flask(__name__)
 # CONFIGURAÇÕES DO SISTEMA
 # =========================
 ATIVOS = [
-    "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "EURJPY"
+    "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "EURJPY",
+    "NZDUSD", "EURGBP", "GBPJPY", "AUDJPY", "CADJPY", "CHFJPY", "EURAUD",
+    "GBPAUD", "NZDJPY", "USDHKD", "USDZAR", "USDMXN"
 ]
-VALOR_BANCA_INICIAL = 100.0  # Altere conforme sua banca
+VALOR_BANCA_INICIAL = 100.0  # Banca inicial
 ENTRADA_PORCENTAGEM = 0.02   # 2% da banca
-STOP_WIN = 0.10              # Meta diária de lucro: 10% da banca
-STOP_LOSS = 0.05             # Limite diário de perda: 5% da banca
-INTERVALO_ANALISE = 180      # 3 minutos para testes
+STOP_WIN = 0.10              # Meta de lucro diária: 10%
+STOP_LOSS = 0.05             # Limite de perda diária: 5%
+INTERVALO_ANALISE = 180      # 3 minutos entre análises
 
 banca_atual = VALOR_BANCA_INICIAL
 lucro_dia = 0.0
@@ -42,23 +44,14 @@ def enviar_mensagem(texto):
     except Exception as e:
         print("❌ Erro ao enviar mensagem:", e)
 
-def nome_formatado(simbolo):
-    nomes = {
-        "EURUSD": "Euro / Dólar",
-        "GBPUSD": "Libra / Dólar",
-        "USDJPY": "Dólar / Iene",
-        "USDCHF": "Dólar / Franco",
-        "AUDUSD": "Dólar Australiano",
-        "USDCAD": "Dólar / Canadense",
-        "EURJPY": "Euro / Iene"
-    }
-    return nomes.get(simbolo, simbolo)
-
 def simular_analise(simbolo):
+    global banca_atual, lucro_dia, perda_dia
+
     agora = (datetime.datetime.utcnow() - datetime.timedelta(hours=3) + datetime.timedelta(minutes=2)).strftime("%H:%M")
     preco = round(100 + (datetime.datetime.now().second % 10), 2)
     tendencia = "STRONG_BUY" if preco % 2 == 0 else "STRONG_SELL"
     entrada = round(banca_atual * ENTRADA_PORCENTAGEM, 2)
+    lucro_simulado = round(entrada * 0.8, 2)  # Simula 80% de retorno se ganhar
     dica_dobra = "📌 DICA: Se o ativo continuar na mesma direção, dobre a operação após 1 minuto." if preco % 2 == 0 else ""
 
     if lucro_dia >= STOP_WIN * VALOR_BANCA_INICIAL:
@@ -72,17 +65,24 @@ def simular_analise(simbolo):
         direcao = "COMPRA" if tendencia == "STRONG_BUY" else "VENDA"
         mensagem = (
             f"⚡ <b>SINAL AO VIVO</b>\n\n"
-            f"🪙 Ativo: <b>{nome_formatado(simbolo)} ({simbolo})</b>\n"
+            f"🪙 Ativo: <b>{simbolo}</b>\n"
             f"⏰ Entrar às: <b>{agora}</b>\n"
             f"📊 Direção: <b>{direcao}</b>\n"
-            f"💰 Entrada: R$ {entrada}\n"
+            f"💰 Entrada sugerida: R$ {entrada} (2% da banca atual R$ {banca_atual})\n"
             f"⌛ Expiração: 5 minutos\n"
             f"{dica_dobra}\n\n"
             f"<i>Baseado em análise automatizada e inteligência de sinais.</i>"
         )
         enviar_mensagem(mensagem)
+
+        # Simular que ganhou a operação
+        banca_atual += lucro_simulado
+        lucro_dia += lucro_simulado
     else:
-        enviar_mensagem(f"🔎 Análise em {simbolo} às {agora}. Nenhuma entrada detectada.")
+        perda_simulada = round(entrada, 2)
+        banca_atual -= perda_simulada
+        perda_dia += perda_simulada
+        enviar_mensagem(f"🔎 Análise em {simbolo} às {agora}. Nenhuma entrada forte. Banca atual: R$ {banca_atual:.2f}")
 
     return True
 
