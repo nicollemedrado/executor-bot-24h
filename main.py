@@ -4,14 +4,19 @@ import time
 from datetime import datetime, timedelta
 from tradingview_ta import TA_Handler, Interval, Exchange
 
-# ====== Configuração via variáveis de ambiente ======
-TELEGRAM_TOKEN = os.getenv("TOKEN_TELEGRAM")
-TELEGRAM_CHAT_ID = os.getenv("TOKEN_TELEGRAM_ID")
+# ====== Configuração fixa com seus dados ======
+TELEGRAM_TOKEN = "7810390855:AAGAUM-z_m4xMSvpF446ITLwujX_aHhTW68"
+TELEGRAM_CHAT_ID = "-1002692489256"
 
-# ====== Configurações Gerais ======
+# ====== Lista completa de ativos populares da Pocket Option ======
 ATIVOS = [
-    "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "EURJPY"
+    "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "EURJPY",
+    "EURGBP", "NZDUSD", "EURCHF", "CADJPY", "CHFJPY", "AUDJPY", "GBPJPY",
+    "EURNZD", "AUDCAD", "NZDJPY", "GBPCAD", "GBPAUD", "USDMXN", "USDZAR",
+    "BTCUSD", "ETHUSD", "XRPUSD", "LTCUSD", "BCHUSD",
+    "TSLA", "AAPL", "AMZN", "MSFT", "META"
 ]
+
 BANCA_INICIAL = 100.0
 PORCENTAGEM_ENTRADA = 0.02
 STOP_WIN = 0.10  # 10%
