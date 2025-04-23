@@ -21,11 +21,12 @@ VALOR_BANCA_INICIAL = 100.0
 ENTRADA_PORCENTAGEM = 0.02
 STOP_WIN = 0.10
 STOP_LOSS = 0.05
-INTERVALO_ANALISE = 600  # 10 minutos em segundos
+INTERVALO_ANALISE = 600  # 10 minutos
 
 banca_atual = VALOR_BANCA_INICIAL
 lucro_dia = 0.0
 perda_dia = 0.0
+avisos_intermediarios = set()
 
 # =========================
 # FUNÇÕES PRINCIPAIS
@@ -44,13 +45,25 @@ def enviar_mensagem(texto):
         print("❌ Erro ao enviar mensagem:", e)
 
 def simular_analise(simbolo):
-    global banca_atual, lucro_dia, perda_dia
-    agora = (datetime.datetime.utcnow() - datetime.timedelta(hours=3)).strftime("%H:%M")
+    global banca_atual, lucro_dia, perda_dia, avisos_intermediarios
+    agora = (datetime.datetime.utcnow() - datetime.timedelta(hours=3) + datetime.timedelta(minutes=2)).strftime("%H:%M")
     preco = round(100 + (datetime.datetime.now().second % 10), 2)
     tendencia = "STRONG_BUY" if preco % 2 == 0 else "STRONG_SELL"
     entrada = round(banca_atual * ENTRADA_PORCENTAGEM, 2)
     dica_dobra = "📌 DICA: Se o ativo continuar na mesma direção, dobre a operação após 1 minuto." if preco % 2 == 0 else ""
 
+    # Avisos intermediários
+    if lucro_dia >= 0.05 * VALOR_BANCA_INICIAL and "win_50" not in avisos_intermediarios:
+        enviar_mensagem("⚠️ Você já lucrou 50% da meta. Falta pouco!")
+        avisos_intermediarios.add("win_50")
+    if lucro_dia >= 0.09 * VALOR_BANCA_INICIAL and "win_90" not in avisos_intermediarios:
+        enviar_mensagem("🚀 Você está a um passo de bater a meta!")
+        avisos_intermediarios.add("win_90")
+    if perda_dia >= 0.03 * VALOR_BANCA_INICIAL and "loss_60" not in avisos_intermediarios:
+        enviar_mensagem("❗Você perdeu 60% do limite de perda. Cuidado!")
+        avisos_intermediarios.add("loss_60")
+
+    # Verificação de meta/limite
     if lucro_dia >= STOP_WIN * VALOR_BANCA_INICIAL:
         enviar_mensagem("🟢 <b>Meta diária de lucro atingida.</b> Bot pausado temporariamente.")
         return False
@@ -63,14 +76,18 @@ def simular_analise(simbolo):
         mensagem = (
             f"⚡ <b>SINAL AO VIVO</b>\n\n"
             f"🪙 Ativo: <b>{simbolo}</b>\n"
-            f"⏰ Horário: <b>{agora}</b>\n"
+            f"⏰ Entrada às: <b>{agora}</b>\n"
             f"📊 Direção: <b>{direcao}</b>\n"
-            f"💰 Entrada sugerida: R$ {entrada}\n"
+            f"💰 Entrada sugerida: R$ {entrada:.2f}\n"
             f"⌛ Expiração: 5 minutos\n"
             f"{dica_dobra}\n\n"
             f"<i>Baseado em análise automatizada e inteligência de sinais.</i>"
         )
         enviar_mensagem(mensagem)
+        lucro_dia += entrada  # Simulando win
+    else:
+        perda_dia += entrada  # Simulando loss
+
     return True
 
 def loop_executor():
@@ -80,9 +97,7 @@ def loop_executor():
             continuar = simular_analise(ativo)
             if not continuar:
                 return
-            time.sleep(1)
-        print("🕒 Aguardando próximo ciclo...")
-        time.sleep(INTERVALO_ANALISE)
+            time.sleep(INTERVALO_ANALISE)
 
 @app.route('/')
 def index():
