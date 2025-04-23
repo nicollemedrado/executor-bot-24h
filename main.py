@@ -2,14 +2,17 @@ import os
 import requests
 import time
 import datetime
-import threading
 from flask import Flask
+import threading
 
+# Configurações do bot
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+# Inicializa o Flask
 app = Flask(__name__)
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = "@SalaFantasmaBR"  # Canal fixo
-
+# Envia mensagem para o Telegram
 def enviar_mensagem(mensagem):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
@@ -18,78 +21,45 @@ def enviar_mensagem(mensagem):
         "parse_mode": "HTML"
     }
     response = requests.post(url, data=payload)
-    print("Mensagem enviada:", response.text)
+    print(f"Mensagem enviada | Status: {response.status_code}")
 
-def consultar_preco_ativo(simbolo):
-    try:
-        url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={simbolo}"
-        resposta = requests.get(url)
-        dados = resposta.json()
-        return dados["quoteResponse"]["result"][0].get("regularMarketPrice", None)
-    except Exception as erro:
-        print(f"Erro ao consultar preço de {simbolo}: {erro}")
-        return None
-
-def nome_ativo_formatado(simbolo):
-    nomes = {
-        "EURUSD": "Euro / Dólar",
-        "GBPUSD": "Libra / Dólar",
-        "USDJPY": "Dólar / Iene",
-        "BTCUSD": "Bitcoin",
-        "ETHUSD": "Ethereum",
-        "TSLA": "Tesla",
-        "AAPL": "Apple",
-        "AMZN": "Amazon"
-    }
-    return nomes.get(simbolo, simbolo)
-
+# Loop de sinais
 def loop_sinais():
-    # Mensagem inicial
-    mensagem_inicial = (
-        "🤖 <b>BOT EXECUTOR INICIADO COM SUCESSO!</b>\n\n"
-        "⏰ Aguardando sinais ao vivo...\n"
-        "📡 O sistema está analisando o mercado 24h por dia."
-    )
-    enviar_mensagem(mensagem_inicial)
-
-    ativos = ["EURUSD", "GBPUSD", "USDJPY", "BTCUSD", "ETHUSD", "TSLA", "AAPL", "AMZN"]
-
+    ativos = ["EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "EURJPY", "BTCUSD", "ETHUSD", "AAPL", "TSLA"]
     while True:
-        print("⏳ Iniciando análise dos ativos...")
+        print(f"⏱️ Loop executado às {datetime.datetime.now().strftime('%H:%M:%S')}")
 
-        for simbolo in ativos:
-            preco = consultar_preco_ativo(simbolo)
-            if preco:
-                nome = nome_ativo_formatado(simbolo)
-                hora = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=-3))).strftime("%H:%M")
+        for ativo in ativos:
+            try:
+                url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={ativo}"
+                response = requests.get(url)
+                data = response.json()
+                preco = data["quoteResponse"]["result"][0].get("regularMarketPrice", None)
 
-                if preco > 100:  # Simulação de entrada forte
-                    mensagem = (
-                        f"⚡ <b>SINAL AO VIVO DETECTADO</b> ⚡\n"
-                        f"<b>Ativo:</b> {nome} ({simbolo})\n"
-                        f"<b>Horário:</b> {hora}\n"
-                        f"<b>Status:</b> ✅ Entrada Forte Detectada\n"
-                        f"☑️ <i>Prepare-se para operar!</i>"
-                    )
+                if preco:
+                    horario = datetime.datetime.now().strftime("%H:%M")
+                    mensagem = f"⚡ <b>SINAL AO VIVO DETECTADO</b> ⚡\n\n" \
+                               f"<b>Ativo:</b> {ativo}\n" \
+                               f"<b>Horário:</b> {horario}\n" \
+                               f"<b>Status:</b> Entrada Forte Detectada\n" \
+                               f"✅ <b>Prepare-se para operar!</b>"
+                    enviar_mensagem(mensagem)
+                    print(f"✅ Sinal enviado para: {ativo} | Preço: {preco}")
                 else:
-                    mensagem = (
-                        f"📉 <b>SEM ENTRADA RECOMENDADA</b>\n"
-                        f"<b>Ativo:</b> {nome} ({simbolo})\n"
-                        f"<b>Horário:</b> {hora}\n"
-                        f"🔍 Mercado analisado, aguardando movimento forte."
-                    )
+                    print(f"⚠️ Preço não encontrado para {ativo}")
+            except Exception as e:
+                print(f"Erro ao analisar {ativo}: {e}")
 
-                enviar_mensagem(mensagem)
-                time.sleep(1)
+        print("⏳ Aguardando 2 minutos para próxima análise...\n")
+        time.sleep(120)  # 2 minutos
 
-        print("🔁 Aguardando 10 minutos para a próxima análise...")
-        time.sleep(600)
-
+# Rota básica do Flask
 @app.route('/')
 def index():
-    return "✅ Bot Executor está rodando com análise de sinais 24h."
+    return "Bot Executor Sinais 24h está ativo."
 
-threading.Thread(target=loop_sinais, daemon=True).start()
-
+# Inicia o loop de sinais em segundo plano
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
+    thread = threading.Thread(target=loop_sinais, daemon=True)
+    thread.start()
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
