@@ -15,13 +15,13 @@ app = Flask(__name__)
 # =========================
 ATIVOS = [
     "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "EURJPY",
-    "BTCUSD", "ETHUSD"
+    "BTCUSD", "ETHUSD", "LTCUSD", "XRPUSD", "NZDUSD", "GBPJPY", "CADJPY"
 ]
-VALOR_BANCA_INICIAL = 100.0  # Altere conforme sua banca
-ENTRADA_PORCENTAGEM = 0.02   # 2% da banca
-STOP_WIN = 0.10              # Meta diária de lucro: 10% da banca
-STOP_LOSS = 0.05             # Limite diário de perda: 5% da banca
-INTERVALO_ANALISE = 600      # 10 minutos
+VALOR_BANCA_INICIAL = 100.0
+ENTRADA_PORCENTAGEM = 0.02
+STOP_WIN = 0.10
+STOP_LOSS = 0.05
+INTERVALO_ANALISE = 600  # 10 minutos em segundos
 
 banca_atual = VALOR_BANCA_INICIAL
 lucro_dia = 0.0
@@ -45,8 +45,7 @@ def enviar_mensagem(texto):
 
 def simular_analise(simbolo):
     global banca_atual, lucro_dia, perda_dia
-
-    agora = datetime.datetime.now().strftime("%H:%M")
+    agora = (datetime.datetime.utcnow() - datetime.timedelta(hours=3)).strftime("%H:%M")
     preco = round(100 + (datetime.datetime.now().second % 10), 2)
     tendencia = "STRONG_BUY" if preco % 2 == 0 else "STRONG_SELL"
     entrada = round(banca_atual * ENTRADA_PORCENTAGEM, 2)
@@ -66,15 +65,12 @@ def simular_analise(simbolo):
             f"🪙 Ativo: <b>{simbolo}</b>\n"
             f"⏰ Horário: <b>{agora}</b>\n"
             f"📊 Direção: <b>{direcao}</b>\n"
-            f"💰 Entrada sugerida: R$ {entrada:.2f}\n"
+            f"💰 Entrada sugerida: R$ {entrada}\n"
             f"⌛ Expiração: 5 minutos\n"
             f"{dica_dobra}\n\n"
             f"<i>Baseado em análise automatizada e inteligência de sinais.</i>"
         )
         enviar_mensagem(mensagem)
-    else:
-        enviar_mensagem(f"🔎 Análise em {simbolo} às {agora}. Nenhuma entrada detectada.")
-
     return True
 
 def loop_executor():
