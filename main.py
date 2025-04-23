@@ -2,85 +2,103 @@ import os
 import requests
 import time
 import datetime
+import threading
+from flask import Flask
 
+# ============================
+# CONFIGURAÇÕES INICIAIS
+# ============================
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-# =========================
-# CONFIGURAÇÕES DO SISTEMA
-# =========================
+Banca = 1000.0
+ValorEntrada = 5.0
+MetaLucro = 200.0
+LimitePerda = 100.0
+LucroAcumulado = 0.0
+PerdaAcumulada = 0.0
+IntervaloAnalise = 600  # 10 minutos
+
 ATIVOS = [
-    "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD",
-    "EURJPY", "NZDUSD", "NZDJPY", "EURGBP", "GBPJPY", "CADJPY",
-    "CHFJPY", "AUDJPY", "AUDCAD", "AUDCHF", "EURNZD", "GBPCAD",
-    "BTCUSD", "ETHUSD"
+    "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "EURJPY"
 ]
-VALOR_BANCA_INICIAL = 100.0
-ENTRADA_PORCENTAGEM = 0.02
-STOP_WIN = 0.10
-STOP_LOSS = 0.05
-INTERVALO_ANALISE = 600  # 10 minutos
 
-banca_atual = VALOR_BANCA_INICIAL
-lucro_dia = 0.0
-perda_dia = 0.0
+app = Flask(__name__)
 
-def enviar_mensagem(texto):
+def enviar_telegram(mensagem):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {
+    data = {
         "chat_id": TELEGRAM_CHAT_ID,
-        "text": texto,
+        "text": mensagem,
         "parse_mode": "HTML"
     }
     try:
-        requests.post(url, data=payload)
-        print("✅ Mensagem enviada:", texto[:60])
-    except Exception as e:
-        print("❌ Erro ao enviar mensagem:", e)
+        requests.post(url, data=data)
+        print("Mensagem enviada com sucesso.")
+    except:
+        print("Erro ao enviar mensagem para o Telegram.")
 
-def simular_analise(simbolo):
-    global banca_atual, lucro_dia, perda_dia
+def analisar_forca():
+    return int(datetime.datetime.now().second % 10 + 1)  # Simulação de força (1-10)
 
-    agora = datetime.datetime.now().strftime("%H:%M")
-    preco = round(100 + (datetime.datetime.now().second % 10), 2)
-    tendencia = "STRONG_BUY" if preco % 2 == 0 else "STRONG_SELL"
-    entrada = round(banca_atual * ENTRADA_PORCENTAGEM, 2)
-    dica_dobra = "\n📌 <b>DICA:</b> Se o ativo continuar na mesma direção, dobre a operação após 1 minuto."
-
-    if lucro_dia >= STOP_WIN * VALOR_BANCA_INICIAL:
-        enviar_mensagem("🟢 <b>Meta diária de lucro atingida.</b> Bot pausado temporariamente.")
-        return False
-    if perda_dia >= STOP_LOSS * VALOR_BANCA_INICIAL:
-        enviar_mensagem("🔴 <b>Limite diário de perda atingido.</b> Bot pausado temporariamente.")
-        return False
-
-    direcao = "COMPRA" if tendencia == "STRONG_BUY" else "VENDA"
-    mensagem = (
-        f"⚡ <b>SINAL AO VIVO</b>\n\n"
-        f"🪙 Ativo: <b>{simbolo}</b>\n"
-        f"⏰ Horário: <b>{agora}</b>\n"
-        f"📊 Direção: <b>{direcao}</b>\n"
-        f"💰 Entrada sugerida: R$ {entrada:.2f}\n"
-        f"⌛ Expiração: 5 minutos"
-        f"{dica_dobra}\n\n"
-        f"<i>Baseado em análise automatizada e inteligência de sinais.</i>"
+def formatar_sinal(ativo, direcao, cliques):
+    agora = datetime.datetime.now().strftime("%H:%M:%S")
+    return (
+        f"\u26a1 <b>SINAL TURBO</b>\n"
+        f"<b>{ativo}</b>\n"
+        f"<b>DIRE\u00c7\u00c3O:</b> {direcao}\n"
+        f"<b>CLIQUES:</b> {cliques}x\n"
+        f"<b>EXPIRA\u00c7\u00c3O:</b> 10 SEGUNDOS\n"
+        f"<b>HOR\u00c1RIO:</b> {agora}"
     )
-    enviar_mensagem(mensagem)
+
+def simular_resultado(cliques):
+    global LucroAcumulado, PerdaAcumulada
+    acertos = int(cliques * 0.7)  # Simulação: 70% win
+    erros = cliques - acertos
+    lucro = acertos * ValorEntrada * 0.92
+    perda = erros * ValorEntrada
+    LucroAcumulado += lucro
+    PerdaAcumulada += perda
+
+def verificar_limites():
+    if LucroAcumulado >= MetaLucro:
+        enviar_telegram("\ud83d\udd35 <b>Meta de lucro do dia atingida. Parando o bot.</b>")
+        return False
+    if PerdaAcumulada >= LimitePerda:
+        enviar_telegram("\ud83d\udd34 <b>Limite de perda do dia atingido. Parando o bot.</b>")
+        return False
     return True
 
-def loop_executor():
+def ciclo():
     while True:
-        sinais_encontrados = False
-        print("🔁 Iniciando nova análise de mercado...")
+        if not verificar_limites():
+            break
+
+        enviado = False
         for ativo in ATIVOS:
-            continuar = simular_analise(ativo)
-            if continuar:
-                sinais_encontrados = True
-            time.sleep(1)
-        if not sinais_encontrados:
-            enviar_mensagem("🔍 Nenhum sinal detectado no ciclo atual. Bot continua analisando...")
-        print("🕒 Aguardando próximo ciclo...")
-        time.sleep(INTERVALO_ANALISE)
+            if not verificar_limites():
+                break
+            forca = analisar_forca()
+            if forca >= 5:
+                direcao = "COMPRA" if forca % 2 == 0 else "VENDA"
+                mensagem = formatar_sinal(ativo, direcao, forca)
+                enviar_telegram(mensagem)
+                simular_resultado(forca)
+                enviado = True
+                break  # envia apenas 1 sinal por ciclo
+
+        if not enviado:
+            enviar_telegram("\u26aa <i>Analisando o mercado... Nenhum sinal forte detectado.</i>")
+
+        print("Aguardando o pr\u00f3ximo ciclo...")
+        time.sleep(IntervaloAnalise)
+
+@app.route("/")
+def home():
+    return "Bot Executor de Setas Turbo ativo!"
+
+threading.Thread(target=ciclo).start()
 
 if __name__ == '__main__':
-    loop_executor()
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
