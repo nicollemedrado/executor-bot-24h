@@ -2,6 +2,7 @@ import os
 import requests
 import time
 import datetime
+from tradingview_ta import TA_Handler, Interval, Exchange
 
 # =========================
 # CONFIGURAÇÕES DO SISTEMA
@@ -38,12 +39,33 @@ def enviar_mensagem(mensagem):
     except Exception as e:
         print("Erro ao enviar mensagem:", e)
 
+def analisar_mercado(simbolo):
+    handler = TA_Handler(
+        symbol=simbolo,
+        exchange="FX_IDC" if simbolo not in ["BTCUSD", "ETHUSD"] else "BINANCE",
+        screener="crypto" if simbolo in ["BTCUSD", "ETHUSD"] else "forex",
+        interval=Interval.INTERVAL_5_MINUTES
+    )
+    try:
+        analise = handler.get_analysis()
+        recomendacao = analise.summary["RECOMMENDATION"]
+        return recomendacao
+    except Exception as e:
+        print(f"Erro ao analisar {simbolo}:", e)
+        return None
+
 def simular_analise(simbolo):
     global banca_atual, lucro_dia, perda_dia
     agora = datetime.datetime.now().strftime("%H:%M")
-    preco_simulado = round(100 + (datetime.datetime.now().second % 10), 2)
-    tendencia = "STRONG_BUY" if preco_simulado % 2 == 0 else "STRONG_SELL"
-    direcao = "COMPRA" if tendencia == "STRONG_BUY" else "VENDA"
+    recomendacao = analisar_mercado(simbolo)
+
+    if not recomendacao:
+        return False
+
+    if recomendacao not in ["STRONG_BUY", "STRONG_SELL"]:
+        return False
+
+    direcao = "COMPRA" if recomendacao == "STRONG_BUY" else "VENDA"
     entrada = round(banca_atual * ENTRADA_PORCENTAGEM, 2)
     dica_dobra = "\n📌 <b>DICA:</b> Se o ativo continuar na mesma direção, dobre a operação após 1 minuto."
 
@@ -62,7 +84,7 @@ def simular_analise(simbolo):
         f"💰 Entrada sugerida: R$ {entrada}\n"
         f"⌛ Expiração: 5 minutos"
         f"{dica_dobra}\n\n"
-        f"<i>Baseado em análise automatizada.</i>"
+        f"<i>Baseado em análise real via TradingView.</i>"
     )
     enviar_mensagem(mensagem)
     lucro_dia += entrada * 0.85  # simula lucro
@@ -80,7 +102,7 @@ def iniciar_bot():
                 sinal_detectado = True
                 time.sleep(2)  # intervalo entre sinais
         if not sinal_detectado:
-            enviar_mensagem("🕵️ Nenhum sinal detectado. O sistema segue monitorando...")
+            enviar_mensagem("🕵️ Nenhum sinal forte detectado. O sistema segue monitorando...")
         print("⏳ Aguardando próxima análise...")
         time.sleep(INTERVALO_ANALISE)
 
