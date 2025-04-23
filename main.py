@@ -89,7 +89,8 @@ def ciclo():
                 break  # envia apenas 1 sinal por ciclo
 
         if not enviado:
-            enviar_telegram("\u26aa <i>Analisando o mercado... Nenhum sinal forte detectado.</i>")
+            agora = datetime.datetime.now().strftime("%H:%M:%S")
+            enviar_telegram(f"\u26aa <i>({agora}) Nenhum sinal forte encontrado. Analisando o mercado...</i>")
 
         print("Aguardando o pr\u00f3ximo ciclo...")
         time.sleep(IntervaloAnalise)
