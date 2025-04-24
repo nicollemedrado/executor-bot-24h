@@ -1,46 +1,42 @@
 import os
 import requests
 import time
-import datetime
+from tradingview_ta import TA_Handler, Interval, Exchange
+from datetime import datetime, timedelta
 from flask import Flask
 import threading
-from tradingview_ta import TA_Handler, Interval, Exchange
 
-# Configurações de autenticação do Telegram
-TELEGRAM_TOKEN = "7810390855:AAGAUM-z_m4xMSvpF446ITLwujX_aHhTW68"
-TELEGRAM_CHAT_ID = "-1002692489256"
+# ================== CONFIGURAÇÕES ======================
+TOKEN = "7810390855:AAGAUM-z_m4xMSvpF446ITLwujX_aHhTW68"
+CHAT_ID = "-1002692489256"
+INTERVALO_ENVIO = 180  # Enviar sinais a cada 3 minutos
+EXPIRACAO = "2 minutos"  # Tempo da operação
 
-# Lista completa de ativos disponíveis na plataforma
 ATIVOS = [
     "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "EURJPY",
-    "BTCUSD", "ETHUSD", "LTCUSD", "XRPUSD", "TSLA", "AAPL", "AMZN",
-    "NZDUSD", "EURGBP", "EURAUD", "EURCAD", "AUDCAD", "CADCHF",
-    "CHFJPY", "GBPJPY", "GBPCAD", "NZDJPY"
+    "NZDUSD", "GBPJPY", "CADJPY", "CHFJPY", "EURGBP", "EURAUD", "GBPCAD",
+    "BTCUSD", "ETHUSD"
 ]
-
-INTERVALO_ANALISE = 120  # A cada 2 minutos
-EXPIRACAO = "2 minutos"  # Tempo da operação
 
 app = Flask(__name__)
 
-# Função para enviar mensagens no Telegram
-def enviar_mensagem(texto):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+# ============== FUNÇÕES PRINCIPAIS ======================
+def enviar_mensagem(mensagem):
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": texto,
+        "chat_id": CHAT_ID,
+        "text": mensagem,
         "parse_mode": "HTML"
     }
     try:
         requests.post(url, data=payload)
-        print("✅ Mensagem enviada")
-    except Exception as e:
-        print("❌ Erro ao enviar mensagem:", e)
+        print("Mensagem enviada com sucesso!")
+    except:
+        print("Erro ao enviar mensagem para o Telegram.")
 
-# Função principal de análise e envio de sinais
-def analisar_e_enviar():
-    sinal_encontrado = False
 
+def analisar_mercado():
+    sinais_enviados = 0
     for ativo in ATIVOS:
         try:
             analise = TA_Handler(
@@ -48,50 +44,54 @@ def analisar_e_enviar():
                 screener="forex",
                 exchange="FX_IDC",
                 interval=Interval.INTERVAL_1_MINUTE
-            ).get_analysis()
+            )
+            resultado = analise.get_analysis()
+            rsi = resultado.indicators.get("RSI", None)
+            direcao = resultado.summary["RECOMMENDATION"]
+            agora = (datetime.utcnow() - timedelta(hours=3)).strftime("%H:%M")
 
-            recomendacao = analise.summary["RECOMMENDATION"]
-            rsi = analise.indicators.get("RSI", 0)
-            agora = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
-            horario = (agora + datetime.timedelta(minutes=2)).strftime("%H:%M")
-            entrada = 2.00
+            if direcao in ["STRONG_BUY", "STRONG_SELL"]:
+                direcao_texto = "COMPRA" if direcao == "STRONG_BUY" else "VENDA"
 
-            if recomendacao in ["STRONG_BUY", "STRONG_SELL"]:
-                direcao = "COMPRA" if recomendacao == "STRONG_BUY" else "VENDA"
-                mensagem = (
-                    f"⚡ <b>SINAL AO VIVO</b>\n"
-                    f"🌐 Par: <b>{ativo}</b>\n"
-                    f"🔄 Direção: <b>{direcao}</b>\n"
-                    f"🔢 RSI: <b>{rsi:.2f}</b>\n"
-                    f"💵 Entrada sugerida: R$ {entrada}\n"
-                    f"⏰ Entrada: <b>{horario}</b>\n"
-                    f"⏳ Expiração: {EXPIRACAO}\n"
-                    f"⚠ CLIQUE APENAS UMA VEZ (sinal forte)\n"
+                # Decidir se recomenda clicar mais de uma vez
+                cliques = "1 VEZ" if rsi < 70 and rsi > 30 else (
+                    "2 VEZES" if rsi <= 30 or rsi >= 70 else "1 VEZ"
                 )
+
+                mensagem = f"""⚡ <b>SINAL AO VIVO</b>
+🌐 Par: <b>{ativo}</b>
+↺ Direção: <b>{direcao_texto}</b>
+🔢 RSI: <b>{round(rsi, 2)}</b>
+💵 Entrada sugerida: <b>R$ 2.0</b>
+⏰ Entrada: <b>{agora}</b>
+⏳ Expiração: <b>{EXPIRACAO}</b>
+⚠ CLIQUE: <b>{cliques}</b>
+
+<i>Baseado em análise ao vivo do mercado via TradingView.</i>
+"""
                 enviar_mensagem(mensagem)
-                sinal_encontrado = True
+                sinais_enviados += 1
+
         except Exception as e:
             print(f"Erro ao analisar {ativo}: {e}")
 
-    if not sinal_encontrado:
-        mensagem = (
-            "🔍 <b>Analisando mercado...</b>\n"
-            "<i>Nenhum sinal forte detectado por enquanto. O bot continua monitorando.</i>"
-        )
-        enviar_mensagem(mensagem)
+    if sinais_enviados == 0:
+        enviar_mensagem("<b>⌛ Analisando mercado...</b>\n\nNenhum sinal forte detectado no momento. Aguarde o próximo ciclo.")
 
-# Loop contínuo de execução
-def iniciar_bot():
+
+# ================== EXECUÇÃO CONTÍNUA ======================
+def loop_bot():
     while True:
-        print("🔄 Executando análise de mercado...")
-        analisar_e_enviar()
-        time.sleep(INTERVALO_ANALISE)
+        print("Analisando mercado ao vivo...")
+        analisar_mercado()
+        print(f"Aguardando {INTERVALO_ENVIO // 60} minutos para nova análise...")
+        time.sleep(INTERVALO_ENVIO)
+
 
 @app.route("/")
 def home():
-    return "✅ Bot Executor 24h Rodando"
+    return "🚀 Bot Executor ativo com RSI e recomendação inteligente!"
 
-threading.Thread(target=iniciar_bot, daemon=True).start()
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+if __name__ == '__main__':
+    threading.Thread(target=loop_bot).start()
+    app.run(host='0.0.0.0', port=10000)
