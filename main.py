@@ -7,13 +7,13 @@ from tradingview_ta import TA_Handler, Interval, Exchange
 TELEGRAM_TOKEN = "7810390855:AAGAUM-z_m4xMSvpF446ITLwujX_aHhTW68"
 TELEGRAM_CHAT_ID = "-1002692489256"
 
-# Lista de ativos (todas moedas disponíveis na Pocket Option)
+# Lista de ativos
 ATIVOS = [
     "EURUSD", "USDJPY", "GBPUSD", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD",
     "EURJPY", "GBPJPY", "AUDJPY", "EURGBP", "EURAUD", "CADJPY", "CHFJPY"
 ]
 
-# Função para enviar mensagem ao Telegram
+# Enviar mensagem ao Telegram
 def enviar_telegram(mensagem):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
@@ -26,7 +26,7 @@ def enviar_telegram(mensagem):
     except Exception as e:
         print("Erro ao enviar mensagem:", e)
 
-# Função principal do bot
+# Função principal
 def analisar_e_enviar():
     encontrou_sinal = False
 
@@ -43,7 +43,7 @@ def analisar_e_enviar():
             rsi = resultado.indicators["RSI"]
 
             if recomendacao in ["STRONG_BUY", "STRONG_SELL"]:
-                horario_brasil = (datetime.datetime.utcnow() - datetime.timedelta(hours=3) + datetime.timedelta(minutes=3)).strftime("%H:%M")
+                horario_entrada = (datetime.datetime.utcnow() - datetime.timedelta(hours=3) + datetime.timedelta(minutes=3)).strftime("%H:%M")
                 direcao = "COMPRA" if recomendacao == "STRONG_BUY" else "VENDA"
                 expiracao = "5 minutos"
 
@@ -70,23 +70,25 @@ def analisar_e_enviar():
 🔢 RSI: <b>{rsi:.2f}</b>
 📶 Força: <b>{intensidade}</b>
 💵 Entrada sugerida: R$ 2.00
-⏰ Entrada: <b>{horario_brasil}</b>
-⏳ Expiração: <b>{expiracao}</b>
+⏰ Entrada: <b>{horario_entrada}</b> (Horário de Brasília)
+⏳ Expiração: <b>{expiracao}</b> na Pocket Option
 ⚠ CLIQUE <b>{cliques} VEZES</b> na direção indicada
 
-<i>Análise em tempo real com base no TradingView.</i>"""
+✅ <b>IMPORTANTE:</b> Configure a operação para durar <b>5 minutos</b> no gráfico da plataforma.
+
+<i>Análise automática em tempo real com base no TradingView.</i>"""
 
                 enviar_telegram(mensagem)
                 encontrou_sinal = True
-                break  # envia só um por vez para não confundir
+                break
 
         except Exception as e:
             print(f"Erro ao analisar {ativo}: {e}")
 
     if not encontrou_sinal:
-        enviar_telegram("🔎 <i>Analisando mercado...</i> Nenhuma entrada forte encontrada. Aguarde o próximo sinal.")
+        enviar_telegram("🔎 <i>Analisando mercado...</i> Nenhum sinal forte detectado no momento. Aguarde...")
 
-# Loop contínuo
+# Loop de execução
 while True:
     analisar_e_enviar()
-    time.sleep(120)  # 2 minutos entre cada análise
+    time.sleep(120)  # Verifica a cada 2 minutos
