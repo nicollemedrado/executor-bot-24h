@@ -45,7 +45,7 @@ def analisar_e_enviar():
             if recomendacao in ["STRONG_BUY", "STRONG_SELL"]:
                 horario_brasil = (datetime.datetime.utcnow() - datetime.timedelta(hours=3) + datetime.timedelta(minutes=3)).strftime("%H:%M")
                 direcao = "COMPRA" if recomendacao == "STRONG_BUY" else "VENDA"
-                expiracao = "2 minutos"
+                expiracao = "5 minutos"
 
                 if rsi >= 90 or rsi <= 10:
                     intensidade = "EXTREMAMENTE FORTE"
