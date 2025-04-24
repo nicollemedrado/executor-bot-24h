@@ -72,7 +72,7 @@ def gerar_sinal(simbolo):
         direcao = "COMPRA" if recomendacao == "BUY" else "VENDA"
         dica = "⚠ CLIQUE APENAS UMA VEZ (sinal fraco)"
     else:
-        return True  # Nenhuma entrada válida
+        return True
 
     mensagem = (
         f"⚡ <b>SINAL AO VIVO</b>\n"
