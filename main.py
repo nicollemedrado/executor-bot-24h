@@ -4,8 +4,8 @@ import datetime
 import requests
 from tradingview_ta import TA_Handler, Interval, Exchange
 
-TOKEN = os.getenv("TOKEN_TELEGRAM")
-CHAT_ID = os.getenv("TOKEN_TELEGRAM_ID")
+TOKEN = os.getenv("7810390855:AAGAUM-z_m4xMSvpF446ITLwujX_aHhTW68")
+CHAT_ID = os.getenv("-1002692489256")
 
 # Configurações da banca
 BANCA_INICIAL = 100.0
