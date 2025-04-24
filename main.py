@@ -1,86 +1,97 @@
+import os
 import requests
 import time
 import datetime
+from flask import Flask
+import threading
+from tradingview_ta import TA_Handler, Interval, Exchange
 
-TOKEN_TELEGRAM = "7810390855:AAGAUM-z_m4xMSvpF446ITLwujX_aHhTW68"
-TOKEN_TELEGRAM_ID = "-1002692489256"
+# Configurações de autenticação do Telegram
+TELEGRAM_TOKEN = "7810390855:AAGAUM-z_m4xMSvpF446ITLwujX_aHhTW68"
+TELEGRAM_CHAT_ID = "-1002692489256"
 
-# Configurações
+# Lista completa de ativos disponíveis na plataforma
 ATIVOS = [
     "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "EURJPY",
-    "BTCUSD", "ETHUSD", "LTCUSD", "XRPUSD"
+    "BTCUSD", "ETHUSD", "LTCUSD", "XRPUSD", "TSLA", "AAPL", "AMZN",
+    "NZDUSD", "EURGBP", "EURAUD", "EURCAD", "AUDCAD", "CADCHF",
+    "CHFJPY", "GBPJPY", "GBPCAD", "NZDJPY"
 ]
-VALOR_BANCA = 100
-PORCENTAGEM_ENTRADA = 0.02  # 2%
-INTERVALO_ANALISE = 120  # 2 minutos
 
-def enviar_telegram(mensagem):
-    url = f"https://api.telegram.org/bot{TOKEN_TELEGRAM}/sendMessage"
-    data = {
-        "chat_id": TOKEN_TELEGRAM_ID,
-        "text": mensagem,
+INTERVALO_ANALISE = 120  # A cada 2 minutos
+EXPIRACAO = "2 minutos"  # Tempo da operação
+
+app = Flask(__name__)
+
+# Função para enviar mensagens no Telegram
+def enviar_mensagem(texto):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": texto,
         "parse_mode": "HTML"
     }
     try:
-        requests.post(url, data=data)
+        requests.post(url, data=payload)
+        print("✅ Mensagem enviada")
     except Exception as e:
-        print(f"Erro ao enviar mensagem: {e}")
+        print("❌ Erro ao enviar mensagem:", e)
 
-def analisar_rsi():
-    algum_sinal_enviado = False
+# Função principal de análise e envio de sinais
+def analisar_e_enviar():
+    sinal_encontrado = False
 
     for ativo in ATIVOS:
         try:
-            url = f"https://api.taapi.io/rsi?secret=demo&exchange=binance&symbol={ativo}/USDT&interval=1m"
-            resposta = requests.get(url)
-            rsi = resposta.json().get("value", 50)
+            analise = TA_Handler(
+                symbol=ativo,
+                screener="forex",
+                exchange="FX_IDC",
+                interval=Interval.INTERVAL_1_MINUTE
+            ).get_analysis()
 
-            agora = (datetime.datetime.utcnow() - datetime.timedelta(hours=3) + datetime.timedelta(minutes=2)).strftime("%H:%M")
-            valor_entrada = round(VALOR_BANCA * PORCENTAGEM_ENTRADA, 2)
+            recomendacao = analise.summary["RECOMMENDATION"]
+            rsi = analise.indicators.get("RSI", 0)
+            agora = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
+            horario = (agora + datetime.timedelta(minutes=2)).strftime("%H:%M")
+            entrada = 2.00
 
-            if rsi <= 30:
+            if recomendacao in ["STRONG_BUY", "STRONG_SELL"]:
+                direcao = "COMPRA" if recomendacao == "STRONG_BUY" else "VENDA"
                 mensagem = (
-                    f"⚡ <b>SINAL AO VIVO</b>\n\n"
-                    f"🌐 Par: {ativo}\n"
-                    f"🔄 Direção: <b>COMPRA</b>\n"
-                    f"🔢 RSI: {round(rsi, 2)}\n"
-                    f"💵 Entrada sugerida: R$ {valor_entrada}\n"
-                    f"⏰ Entrada: {agora}\n"
-                    f"⏳ Expiração: 2 minutos\n"
-                    f"⚠ CLIQUE APENAS UMA VEZ (sinal forte)\n\n"
-                    f"<i>Baseado em RSI abaixo de 30 (reversão de baixa).</i>"
+                    f"⚡ <b>SINAL AO VIVO</b>\n"
+                    f"🌐 Par: <b>{ativo}</b>\n"
+                    f"🔄 Direção: <b>{direcao}</b>\n"
+                    f"🔢 RSI: <b>{rsi:.2f}</b>\n"
+                    f"💵 Entrada sugerida: R$ {entrada}\n"
+                    f"⏰ Entrada: <b>{horario}</b>\n"
+                    f"⏳ Expiração: {EXPIRACAO}\n"
+                    f"⚠ CLIQUE APENAS UMA VEZ (sinal forte)\n"
                 )
-                enviar_telegram(mensagem)
-                algum_sinal_enviado = True
-                break
-
-            elif rsi >= 70:
-                mensagem = (
-                    f"⚡ <b>SINAL AO VIVO</b>\n\n"
-                    f"🌐 Par: {ativo}\n"
-                    f"🔄 Direção: <b>VENDA</b>\n"
-                    f"🔢 RSI: {round(rsi, 2)}\n"
-                    f"💵 Entrada sugerida: R$ {valor_entrada}\n"
-                    f"⏰ Entrada: {agora}\n"
-                    f"⏳ Expiração: 2 minutos\n"
-                    f"⚠ CLIQUE APENAS UMA VEZ (sinal forte)\n\n"
-                    f"<i>Baseado em RSI acima de 70 (reversão de alta).</i>"
-                )
-                enviar_telegram(mensagem)
-                algum_sinal_enviado = True
-                break
-
+                enviar_mensagem(mensagem)
+                sinal_encontrado = True
         except Exception as e:
             print(f"Erro ao analisar {ativo}: {e}")
 
-    if not algum_sinal_enviado:
-        enviar_telegram("🔎 <b>Analisando mercado...</b>\n\nNenhuma entrada forte detectada ainda. O bot continua monitorando em tempo real.")
+    if not sinal_encontrado:
+        mensagem = (
+            "🔍 <b>Analisando mercado...</b>\n"
+            "<i>Nenhum sinal forte detectado por enquanto. O bot continua monitorando.</i>"
+        )
+        enviar_mensagem(mensagem)
 
-def loop():
+# Loop contínuo de execução
+def iniciar_bot():
     while True:
-        print("🔁 Analisando mercado...")
-        analisar_rsi()
+        print("🔄 Executando análise de mercado...")
+        analisar_e_enviar()
         time.sleep(INTERVALO_ANALISE)
 
+@app.route("/")
+def home():
+    return "✅ Bot Executor 24h Rodando"
+
+threading.Thread(target=iniciar_bot, daemon=True).start()
+
 if __name__ == "__main__":
-    loop()
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
