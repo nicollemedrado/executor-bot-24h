@@ -3,17 +3,17 @@ import time
 import datetime
 from tradingview_ta import TA_Handler, Interval, Exchange
 
-# === CONFIGURAÇÕES DO TELEGRAM ===
+# Dados do Bot Telegram
 TELEGRAM_TOKEN = "7810390855:AAGAUM-z_m4xMSvpF446ITLwujX_aHhTW68"
 TELEGRAM_CHAT_ID = "-1002692489256"
 
-# === LISTA DE ATIVOS A ANALISAR ===
+# Lista de ativos (moedas da Pocket Option)
 ATIVOS = [
     "EURUSD", "USDJPY", "GBPUSD", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD",
     "EURJPY", "GBPJPY", "AUDJPY", "EURGBP", "EURAUD", "CADJPY", "CHFJPY"
 ]
 
-# === FUNÇÃO PARA ENVIAR SINAL NO TELEGRAM ===
+# Função para enviar mensagem ao Telegram
 def enviar_telegram(mensagem):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
@@ -26,9 +26,10 @@ def enviar_telegram(mensagem):
     except Exception as e:
         print("Erro ao enviar mensagem:", e)
 
-# === FUNÇÃO PRINCIPAL ===
+# Função principal
 def analisar_e_enviar():
-    melhor_sinal = None
+    encontrou_sinal = False
+
     for ativo in ATIVOS:
         try:
             analise = TA_Handler(
@@ -37,85 +38,73 @@ def analisar_e_enviar():
                 exchange="FX_IDC",
                 interval=Interval.INTERVAL_1_MINUTE
             )
-
             resultado = analise.get_analysis()
             recomendacao = resultado.summary["RECOMMENDATION"]
             rsi = resultado.indicators["RSI"]
-            macd = resultado.indicators.get("MACD.macd", 0)
-            macd_signal = resultado.indicators.get("MACD.signal", 0)
-            ema9 = resultado.indicators.get("EMA9", 0)
-            ema21 = resultado.indicators.get("EMA21", 0)
-            preco = resultado.indicators.get("close", 0)
-
-            direcao = None
-            justificativa = []
-            indicadores = []
-
-            # Lógica inteligente de confluência
-            if rsi < 30:
-                indicadores.append("RSI sobrevendido")
-                direcao = "COMPRA"
-            elif rsi > 70:
-                indicadores.append("RSI sobrecomprado")
-                direcao = "VENDA"
-
-            if macd > macd_signal:
-                indicadores.append("MACD cruzando para cima")
-                if not direcao:
-                    direcao = "COMPRA"
-            elif macd < macd_signal:
-                indicadores.append("MACD cruzando para baixo")
-                if not direcao:
+            justificativa = ""
+            
+            # Correção inteligente de direção
+            if recomendacao == "STRONG_BUY":
+                if rsi > 70:
                     direcao = "VENDA"
-
-            if preco > ema9 > ema21:
-                indicadores.append("EMA9 acima da EMA21")
-                if not direcao:
+                    justificativa = "(RSI sobrecomprado — inversão estratégica)"
+                else:
                     direcao = "COMPRA"
-            elif preco < ema9 < ema21:
-                indicadores.append("EMA9 abaixo da EMA21")
-                if not direcao:
+            elif recomendacao == "STRONG_SELL":
+                if rsi < 30:
+                    direcao = "COMPRA"
+                    justificativa = "(RSI sobrevendido — inversão estratégica)"
+                else:
                     direcao = "VENDA"
+            else:
+                continue  # ignora sinais fracos
 
-            # Se não tiver no mínimo 2 confirmações, ignora
-            if len(indicadores) < 2 or not direcao:
-                continue
+            # Força e cliques baseados no RSI
+            if rsi >= 90 or rsi <= 10:
+                intensidade = "EXTREMAMENTE FORTE"
+                cliques = 10
+            elif rsi >= 80 or rsi <= 20:
+                intensidade = "MUITO FORTE"
+                cliques = 7
+            elif rsi >= 70 or rsi <= 30:
+                intensidade = "FORTE"
+                cliques = 5
+            elif rsi >= 60 or rsi <= 40:
+                intensidade = "MODERADA"
+                cliques = 3
+            else:
+                intensidade = "FRACA"
+                cliques = 1
 
-            # Pega o horário com 3 minutos de antecedência
+            # Horário da entrada com +3 min
             horario_entrada = (datetime.datetime.utcnow() - datetime.timedelta(hours=3) + datetime.timedelta(minutes=3)).strftime("%H:%M")
 
             mensagem = f"""⚡ <b>SINAL AO VIVO</b>
 
-📊 Par: <b>{ativo}</b>
-🔄 Direção: <b>{direcao}</b>
-📶 Força técnica: <b>{' + '.join(indicadores)}</b>
-
-📈 RSI: <b>{rsi:.2f}</b>
-📉 MACD: <b>{macd:.2f}</b> | Sinal: <b>{macd_signal:.2f}</b>
-📊 EMA9: <b>{ema9:.4f}</b> | EMA21: <b>{ema21:.4f}</b>
-💰 Preço atual: <b>{preco:.4f}</b>
-
-🧠 <b>INTERPRETAÇÃO:</b> {' + '.join(indicadores)}
-
-📌 Indicadores para ativar no gráfico: <b>RSI • MACD • EMA 9/21</b>
-⏰ Entrada sugerida: <b>{horario_entrada}</b> (Horário de Brasília)
+🌐 Par: <b>{ativo}</b>
+🔄 Direção: <b>{direcao}</b> {justificativa}
+🔢 RSI: <b>{rsi:.2f}</b>
+📶 Força: <b>{intensidade}</b>
+💵 Entrada sugerida: R$ 2.00
+⏰ Entrada: <b>{horario_entrada}</b> (Horário de Brasília)
 ⏳ Expiração: <b>5 minutos</b> na Pocket Option
+⚠ CLIQUE <b>{cliques} VEZES</b> na direção indicada
 
-<i>Análise técnica em tempo real com confirmação de múltiplos indicadores.</i>
-"""
+✅ <b>IMPORTANTE:</b> Configure a operação para durar <b>5 minutos</b> no gráfico da plataforma.
 
-            melhor_sinal = mensagem
-            break  # envia só um por vez
+<i>Análise em tempo real com base no TradingView + filtro estratégico RSI.</i>"""
+
+            enviar_telegram(mensagem)
+            encontrou_sinal = True
+            break
 
         except Exception as e:
             print(f"Erro ao analisar {ativo}: {e}")
 
-    if melhor_sinal:
-        enviar_telegram(melhor_sinal)
-    else:
-        enviar_telegram("🔎 Nenhum sinal forte detectado agora. Monitorando...")
+    if not encontrou_sinal:
+        enviar_telegram("🔎 <i>Analisando mercado...</i> Nenhum sinal forte detectado no momento. Aguarde...")
 
-# === LOOP CONTÍNUO ===
+# Loop contínuo
 while True:
     analisar_e_enviar()
-    time.sleep(180)  # 3 minutos entre análises
+    time.sleep(120)
