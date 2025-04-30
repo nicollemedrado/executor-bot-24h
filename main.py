@@ -4,8 +4,8 @@ import datetime
 from tradingview_ta import TA_Handler, Interval
 
 # Dados do Bot Telegram
-TELEGRAM_TOKEN = "7810390855:AAGAUM-z_m4xMSvpF446ITLwujX_aHhTW68"
-TELEGRAM_CHAT_ID = "-1002692489256"
+TELEGRAM_TOKEN = "8114639244:AAFHL2WS5RAwgoxMr2VRZ00LtzAbCoKlCFY"
+TELEGRAM_CHAT_ID = "-1002555783780"
 
 # Lista de ativos para análise (moedas principais Pocket Option)
 ATIVOS = [
