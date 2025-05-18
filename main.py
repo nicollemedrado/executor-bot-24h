@@ -1,3 +1,4 @@
+
 import requests
 import time
 import datetime
@@ -5,14 +6,14 @@ import csv
 import random
 from tradingview_ta import TA_Handler, Interval
 
-# CONFIGURAÇÕES GERAIS
+# CONFIGURAÇÕES
 TELEGRAM_TOKEN = "7752601078:AAHRs0Z_BUei1W7tn8Gwbjt0a1-HV7-cHTc"
 TELEGRAM_CHAT_ID = "-1002555783780"
 ARQUIVO_HISTORICO = "historico_sinais.csv"
 ANTECEDENCIA_MINUTOS = 3
 ATIVOS_ANALISADOS = set()
 
-# LISTA COMPLETA DE PARES DE MOEDAS
+# PARES DE MOEDAS (FOREX)
 MOEDAS_FOREX = [
     "EURUSD", "GBPUSD", "AUDUSD", "NZDUSD", "USDJPY", "USDCHF", "USDCAD",
     "EURJPY", "GBPJPY", "AUDJPY", "CADJPY", "CHFJPY", "EURAUD", "EURGBP",
@@ -33,11 +34,20 @@ def registrar_sinal(dados):
         writer = csv.writer(file)
         writer.writerow(dados)
 
-def calcular_cliques(rsi):
-    return min(10, max(1, int(abs(rsi - 50) / 3)))
+def classificar_forca(rsi):
+    if rsi >= 90 or rsi <= 10:
+        return "💎 EXTREMAMENTE FORTE", 10
+    elif rsi >= 80 or rsi <= 20:
+        return "🔥 MUITO FORTE", 7
+    elif rsi >= 70 or rsi <= 30:
+        return "💪 FORTE", 5
+    elif rsi >= 65 or rsi <= 35:
+        return "⚠️ MODERADA", 3
+    else:
+        return None, 0
 
 def analisar_mercado(ativos):
-    random.shuffle(ativos)  # embaralhar para variar
+    random.shuffle(ativos)
     for ativo in ativos:
         try:
             if ativo in ATIVOS_ANALISADOS:
@@ -45,37 +55,21 @@ def analisar_mercado(ativos):
 
             analise_m1 = TA_Handler(symbol=ativo, screener="forex", exchange="FX_IDC", interval=Interval.INTERVAL_1_MINUTE).get_analysis()
             analise_m5 = TA_Handler(symbol=ativo, screener="forex", exchange="FX_IDC", interval=Interval.INTERVAL_5_MINUTES).get_analysis()
-
             rec_m1 = analise_m1.summary["RECOMMENDATION"]
             rec_m5 = analise_m5.summary["RECOMMENDATION"]
             rsi = analise_m1.indicators["RSI"]
 
             print(f"📊 {ativo} — M1: {rec_m1}, M5: {rec_m5}, RSI: {rsi:.2f}")
 
-            if 45 < rsi < 55:
-                continue  # lateralidade
-
             if rec_m1 == rec_m5 and rec_m1 in ["STRONG_BUY", "STRONG_SELL"]:
-                if (rec_m1 == "STRONG_BUY" and rsi >= 70) or (rec_m1 == "STRONG_SELL" and rsi <= 30):
-                    direcao = "🔼 COMPRA" if "BUY" in rec_m1 else "🔽 VENDA"
-                    cliques = calcular_cliques(rsi)
-                    hora = (datetime.datetime.utcnow() - datetime.timedelta(hours=3) + datetime.timedelta(minutes=ANTECEDENCIA_MINUTOS)).strftime("%H:%M")
+                intensidade, cliques = classificar_forca(rsi)
+                if not intensidade or cliques < 3:
+                    continue
 
-                    if cliques < 3:
-                        continue  # força muito fraca mesmo com confirmação
+                direcao = "🔼 COMPRA" if "BUY" in rec_m1 else "🔽 VENDA"
+                hora = (datetime.datetime.utcnow() - datetime.timedelta(hours=3) + datetime.timedelta(minutes=ANTECEDENCIA_MINUTOS)).strftime("%H:%M")
 
-                    intensidade = {
-                        10: "💎 EXTREMAMENTE FORTE",
-                        9: "🔥 MUITO FORTE",
-                        8: "🔥 MUITO FORTE",
-                        7: "💪 FORTE",
-                        6: "💪 FORTE",
-                        5: "⚠️ MÉDIA",
-                        4: "⚠️ MÉDIA",
-                        3: "⚠️ MÉDIA"
-                    }.get(cliques, "⚠️ FORÇA DESCONHECIDA")
-
-                    mensagem = f"""✅ <b>SINAL PRECISO DETECTADO</b>
+                mensagem = f"""✅ <b>SINAL DETECTADO</b>
 
 📊 Par de Moeda: <b>{ativo}</b>
 📈 Direção: <b>{direcao}</b>
@@ -85,12 +79,12 @@ def analisar_mercado(ativos):
 ⌛ Expiração: <b>5 minutos</b>
 🖱️ CLIQUE <b>{cliques}x</b> NA DIREÇÃO INDICADA
 
-<i>Análise com dupla confirmação + RSI + filtro de reversão</i>
+<i>Análise com M1 + M5 + RSI — modo dinâmico</i>
 """
-                    enviar_telegram(mensagem)
-                    registrar_sinal([str(datetime.datetime.now()), ativo, direcao, rsi, intensidade])
-                    ATIVOS_ANALISADOS.add(ativo)
-                    return True
+                enviar_telegram(mensagem)
+                registrar_sinal([str(datetime.datetime.now()), ativo, direcao, rsi, intensidade])
+                ATIVOS_ANALISADOS.add(ativo)
+                return True
 
         except Exception as e:
             registrar_sinal([str(datetime.datetime.now()), ativo, "ERRO", "-", "-", str(e)])
@@ -98,12 +92,12 @@ def analisar_mercado(ativos):
 
     return False
 
-print("🧠 BOT DE SINAIS 90% ASSERTIVO INICIADO — MODO AGRESSIVO — 24/7 ATIVO")
+print("🚀 BOT ATUALIZADO — ENVIANDO MODERADO, FORTE, EXTREMO — 24/7 MONITORAMENTO")
 
 while True:
     if len(ATIVOS_ANALISADOS) > 25:
-        ATIVOS_ANALISADOS.clear()  # limpa após todos os ativos já analisados uma vez
+        ATIVOS_ANALISADOS.clear()
     enviado = analisar_mercado(MOEDAS_FOREX)
     if not enviado:
-        enviar_telegram("🔍 Nenhum sinal confiável agora. Análise continua em tempo real...")
+        enviar_telegram("📡 Nenhum sinal confiável agora. Monitorando em tempo real...")
     time.sleep(60)
