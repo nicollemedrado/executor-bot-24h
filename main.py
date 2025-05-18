@@ -9,8 +9,15 @@ TELEGRAM_TOKEN = "8114639244:AAFHL2WS5RAwgoxMr2VRZ00LtzAbCoKlCFY"
 TELEGRAM_CHAT_ID = "-1002555783780"
 ARQUIVO_HISTORICO = "historico_sinais.csv"
 
-ATIVOS = [
-    "EURUSD", "GBPUSD", "AUDUSD", "USDJPY", "USDCHF", "EURJPY", "GBPJPY"
+# LISTAS DE ATIVOS
+FOREX = ["EURUSD", "GBPUSD", "AUDUSD", "USDJPY", "USDCHF", "EURJPY", "GBPJPY"]
+CRYPTO = ["BTCUSD", "ETHUSD", "LTCUSD", "XRPUSD"]
+STOCKS = ["AAPL", "GOOGL", "TSLA", "AMZN"]
+
+MERCADOS = [
+    {"ativos": FOREX, "screener": "forex", "exchange": "FX_IDC"},
+    {"ativos": CRYPTO, "screener": "crypto", "exchange": "BINANCE"},
+    {"ativos": STOCKS, "screener": "america", "exchange": "NASDAQ"}
 ]
 
 def enviar_telegram(mensagem):
@@ -30,28 +37,21 @@ def registrar_sinal(dados):
         writer = csv.writer(file)
         writer.writerow(dados)
 
-def analisar_e_enviar():
-    encontrou = False
-
-    for ativo in ATIVOS:
+def analisar_mercado(ativos, screener, exchange):
+    for ativo in ativos:
         try:
-            analise_m1 = TA_Handler(symbol=ativo, screener="forex", exchange="FX_IDC", interval=Interval.INTERVAL_1_MINUTE).get_analysis()
-            analise_m5 = TA_Handler(symbol=ativo, screener="forex", exchange="FX_IDC", interval=Interval.INTERVAL_5_MINUTES).get_analysis()
+            analise_m1 = TA_Handler(symbol=ativo, screener=screener, exchange=exchange, interval=Interval.INTERVAL_1_MINUTE).get_analysis()
+            analise_m5 = TA_Handler(symbol=ativo, screener=screener, exchange=exchange, interval=Interval.INTERVAL_5_MINUTES).get_analysis()
             rec_m1 = analise_m1.summary["RECOMMENDATION"]
             rec_m5 = analise_m5.summary["RECOMMENDATION"]
             rsi = analise_m1.indicators["RSI"]
 
-            # Mercado lateral? Ignora
             if 45 < rsi < 55:
-                enviar_telegram(f"⚠️ <b>{ativo}</b> ignorado — mercado lateral (RSI {rsi:.2f})")
-                registrar_sinal([str(datetime.datetime.now()), ativo, "IGNORADO", rsi, "LATERAL", "-"])
                 continue
 
-            # Confirmar tendência com força dupla
-            if rec_m1 == rec_m5 and rec_m1 in ["STRONG_BUY", "STRONG_SELL"]:
+            if rec_m1 == rec_m5 and rec_m1 in ["BUY", "SELL", "STRONG_BUY", "STRONG_SELL"]:
                 direcao = "🔼 COMPRA" if "BUY" in rec_m1 else "🔽 VENDA"
 
-                # Força do sinal (RSI)
                 if rsi >= 90 or rsi <= 10:
                     intensidade = "💎 EXTREMAMENTE FORTE"
                     cliques = 10
@@ -69,32 +69,36 @@ def analisar_e_enviar():
 
                 hora = (datetime.datetime.utcnow() - datetime.timedelta(hours=3) + datetime.timedelta(minutes=3)).strftime("%H:%M")
 
-                mensagem = f"""✅ <b>SINAL CONFIRMADO</b>
+                mensagem = f"""✅ <b>SINAL DETECTADO</b>
 
-🪙 Par: <b>{ativo}</b>
+📊 Ativo: <b>{ativo}</b>
 📈 Direção: <b>{direcao}</b>
-📊 RSI atual: <b>{rsi:.2f}</b>
-📶 Força do Sinal: <b>{intensidade}</b>
-🕒 Entrada: <b>{hora}</b> (Brasília)
-⏳ Expiração: <b>5 minutos</b>
+📉 RSI: <b>{rsi:.2f}</b>
+📶 Força: <b>{intensidade}</b>
+🕒 Entrada sugerida: <b>{hora}</b>
 🖱️ Clique <b>{cliques}x</b> na direção indicada
 
-<i>Sinal gerado por análise M1+M5 com validação RSI</i>"""
+<i>Análise por confirmação M1+M5 + RSI — Fonte: {exchange.upper()}</i>"""
+
                 enviar_telegram(mensagem)
                 registrar_sinal([str(datetime.datetime.now()), ativo, direcao, rsi, intensidade, "ENVIADO"])
-                encontrou = True
-                break
+                return True
+
         except Exception as e:
-            enviar_telegram(f"⚠️ Erro ao analisar {ativo}: {e}")
             registrar_sinal([str(datetime.datetime.now()), ativo, "ERRO", "-", "-", str(e)])
+            continue
 
-    if not encontrou:
-        enviar_telegram("🔍 Nenhum sinal forte identificado no momento. Análise em andamento...")
-        registrar_sinal([str(datetime.datetime.now()), "-", "-", "-", "-", "SEM SINAL"])
+    return False
 
-# LOOP contínuo de segunda a sexta, das 09h às 18h
+# LOOP contínuo com verificação multi-mercado
 while True:
     agora = datetime.datetime.now()
     if agora.weekday() < 5 and 9 <= agora.hour < 18:
-        analisar_e_enviar()
+        enviado = False
+        for mercado in MERCADOS:
+            enviado = analisar_mercado(mercado["ativos"], mercado["screener"], mercado["exchange"])
+            if enviado:
+                break
+        if not enviado:
+            enviar_telegram("🔍 Nenhum sinal forte detectado em moedas, criptos ou ações. Continuamos analisando o mercado...")
     time.sleep(120)
