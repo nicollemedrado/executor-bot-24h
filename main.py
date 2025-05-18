@@ -6,9 +6,9 @@ from tradingview_ta import TA_Handler, Interval
 TELEGRAM_TOKEN = "8114639244:AAFHL2WS5RAwgoxMr2VRZ00LtzAbCoKlCFY"
 TELEGRAM_CHAT_ID = "-1002555783780"
 
+# Pares com maior movimentação e tendência
 ATIVOS = [
-    "EURUSD", "GBPUSD", "AUDUSD", "NZDUSD", "USDJPY", "USDCHF", "USDCAD",
-    "EURJPY", "GBPJPY", "AUDJPY", "EURGBP", "EURAUD", "CADJPY", "CHFJPY"
+    "EURUSD", "GBPUSD", "AUDUSD", "USDJPY", "USDCHF", "EURJPY", "GBPJPY"
 ]
 
 def enviar_telegram(mensagem):
@@ -24,8 +24,6 @@ def enviar_telegram(mensagem):
         print("Erro ao enviar mensagem:", e)
 
 def analisar_e_enviar():
-    encontrou_sinal = False
-
     for ativo in ATIVOS:
         try:
             analise_m1 = TA_Handler(
@@ -42,59 +40,56 @@ def analisar_e_enviar():
                 interval=Interval.INTERVAL_5_MINUTES
             ).get_analysis()
 
-            recomendacao_m1 = analise_m1.summary["RECOMMENDATION"]
-            recomendacao_m5 = analise_m5.summary["RECOMMENDATION"]
+            rec_m1 = analise_m1.summary["RECOMMENDATION"]
+            rec_m5 = analise_m5.summary["RECOMMENDATION"]
             rsi = analise_m1.indicators["RSI"]
 
-            # Confirma tendência e força
-            if recomendacao_m1 in ["BUY", "STRONG_BUY", "SELL", "STRONG_SELL"] and recomendacao_m1 == recomendacao_m5:
-                if (recomendacao_m1 in ["BUY", "STRONG_BUY"] and rsi < 70) or (recomendacao_m1 in ["SELL", "STRONG_SELL"] and rsi > 30):
-                    if 45 < rsi < 55:
-                        continue  # mercado lateral, pula
+            # Condições de filtro REAL (assertividade alta)
+            if rec_m1 == rec_m5 and rec_m1 in ["STRONG_BUY", "STRONG_SELL"]:
+                if 45 < rsi < 55:
+                    continue  # mercado neutro, sem entrada
 
-                    direcao = "COMPRA" if "BUY" in recomendacao_m1 else "VENDA"
-                    horario_entrada = (datetime.datetime.utcnow() - datetime.timedelta(hours=3) + datetime.timedelta(minutes=3)).strftime("%H:%M")
+                direcao = "🔼 COMPRA" if "BUY" in rec_m1 else "🔽 VENDA"
 
-                    # Avaliação da força com base no RSI
-                    if rsi >= 90 or rsi <= 10:
-                        intensidade = "EXTREMAMENTE FORTE"
-                        cliques = 10
-                    elif rsi >= 80 or rsi <= 20:
-                        intensidade = "MUITO FORTE"
-                        cliques = 7
-                    elif rsi >= 70 or rsi <= 30:
-                        intensidade = "FORTE"
-                        cliques = 5
-                    elif rsi >= 60 or rsi <= 40:
-                        intensidade = "MODERADA"
-                        cliques = 3
-                    else:
-                        intensidade = "FRACA"
-                        cliques = 1
+                # Força combinada: RSI + Recomendação
+                if rsi >= 90 or rsi <= 10:
+                    intensidade = "💎 EXTREMAMENTE FORTE"
+                    cliques = 10
+                elif rsi >= 80 or rsi <= 20:
+                    intensidade = "🔥 MUITO FORTE"
+                    cliques = 7
+                elif rsi >= 70 or rsi <= 30:
+                    intensidade = "💪 FORTE"
+                    cliques = 5
+                elif rsi >= 65 or rsi <= 35:
+                    intensidade = "⚠️ MÉDIA"
+                    cliques = 3
+                else:
+                    continue  # ignora sinais fracos
 
-                    mensagem = f"""✅ <b>ENTRADA RECOMENDADA</b>
+                hora = (datetime.datetime.utcnow() - datetime.timedelta(hours=3) + datetime.timedelta(minutes=3)).strftime("%H:%M")
 
-🌐 Par: <b>{ativo}</b>
-🔄 Direção: <b>{direcao}</b>
-🔢 RSI: <b>{rsi:.2f}</b>
-📶 Força: <b>{intensidade}</b>
-⏰ Entrada sugerida: <b>{horario_entrada}</b> (Brasília)
-⌛ Expiração: <b>5 minutos</b> na Pocket Option
-🖱️ CLIQUE <b>{cliques}x</b> na direção indicada
+                mensagem = f"""✅ <b>SINAL CONFIRMADO</b>
 
-<i>Análise com base em múltiplos tempos gráficos (M1 + M5) e confirmação de força RSI.</i>
+🪙 Par: <b>{ativo}</b>
+📈 Direção: <b>{direcao}</b>
+📊 RSI atual: <b>{rsi:.2f}</b>
+📶 Força do Sinal: <b>{intensidade}</b>
+🕒 Entrada: <b>{hora}</b> (Brasília)
+⏳ Expiração: <b>5 minutos</b>
+🖱️ Clique <b>{cliques}x</b> na direção indicada
+
+<i>Sinal gerado por análise automatizada M1+M5 com validação RSI para Pocket Option</i>
 """
-                    enviar_telegram(mensagem)
-                    encontrou_sinal = True
-                    break  # envia só um por vez
+                enviar_telegram(mensagem)
+                return  # envia apenas um sinal por análise
 
         except Exception as e:
             print(f"Erro ao analisar {ativo}: {e}")
 
-    if not encontrou_sinal:
-        enviar_telegram("⚠️ <i>Análise concluída.</i> Nenhuma entrada confiável no momento. Aguardar novo sinal...")
-
-# Loop contínuo
+# LOOP com execução suave e focada
 while True:
-    analisar_e_enviar()
+    agora = datetime.datetime.now()
+    if agora.weekday() < 5 and 9 <= agora.hour < 18:
+        analisar_e_enviar()
     time.sleep(120)  # a cada 2 minutos
