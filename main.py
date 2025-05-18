@@ -10,7 +10,6 @@ TELEGRAM_CHAT_ID = "-1002555783780"
 ARQUIVO_HISTORICO = "historico_sinais.csv"
 ANTECEDENCIA_MINUTOS = 3
 
-# LISTAS DE ATIVOS COM TIPO
 MERCADOS = [
     {"tipo": "Moeda (Forex)", "screener": "forex", "exchange": "FX_IDC", "ativos": ["EURUSD", "GBPUSD", "AUDUSD", "USDJPY", "USDCHF", "EURJPY", "GBPJPY"]},
     {"tipo": "Criptomoeda", "screener": "crypto", "exchange": "BINANCE", "ativos": ["BTCUSD", "ETHUSD", "LTCUSD", "XRPUSD"]},
@@ -90,7 +89,6 @@ def analisar_mercado(tipo, ativos, screener, exchange):
 
     return False
 
-# LOOP contínuo com verificação multi-mercado
 while True:
     agora = datetime.datetime.now()
     if agora.weekday() < 5 and 9 <= agora.hour < 18:
