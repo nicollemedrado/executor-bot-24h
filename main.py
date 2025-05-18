@@ -11,7 +11,7 @@ TELEGRAM_TOKEN = "7752601078:AAHRs0Z_BUei1W7tn8Gwbjt0a1-HV7-cHTc"
 TELEGRAM_CHAT_ID = "-1002555783780"
 ARQUIVO_HISTORICO = "historico_sinais.csv"
 ANTECEDENCIA_MINUTOS = 3
-ATIVOS_ANALISADOS = set()
+HISTORICO_ATIVOS = {}
 
 # PARES DE MOEDAS (FOREX)
 MOEDAS_FOREX = [
@@ -46,12 +46,16 @@ def classificar_forca(rsi):
     else:
         return None, 0
 
-def analisar_mercado(ativos):
+def analisar_todos_os_ativos(ativos):
     random.shuffle(ativos)
+    sinais_enviados = 0
+    agora = datetime.datetime.now()
+
     for ativo in ativos:
         try:
-            if ativo in ATIVOS_ANALISADOS:
-                continue
+            ultima_entrada = HISTORICO_ATIVOS.get(ativo)
+            if ultima_entrada and (agora - ultima_entrada).total_seconds() < 900:
+                continue  # ignora ativo analisado nos últimos 15 minutos
 
             analise_m1 = TA_Handler(symbol=ativo, screener="forex", exchange="FX_IDC", interval=Interval.INTERVAL_1_MINUTE).get_analysis()
             analise_m5 = TA_Handler(symbol=ativo, screener="forex", exchange="FX_IDC", interval=Interval.INTERVAL_5_MINUTES).get_analysis()
@@ -67,9 +71,9 @@ def analisar_mercado(ativos):
                     continue
 
                 direcao = "🔼 COMPRA" if "BUY" in rec_m1 else "🔽 VENDA"
-                hora = (datetime.datetime.utcnow() - datetime.timedelta(hours=3) + datetime.timedelta(minutes=ANTECEDENCIA_MINUTOS)).strftime("%H:%M")
+                hora = (agora - datetime.timedelta(hours=3) + datetime.timedelta(minutes=ANTECEDENCIA_MINUTOS)).strftime("%H:%M")
 
-                mensagem = f"""✅ <b>SINAL DETECTADO</b>
+                mensagem = f"""✅ <b>SINAL REAL DETECTADO</b>
 
 📊 Par de Moeda: <b>{ativo}</b>
 📈 Direção: <b>{direcao}</b>
@@ -79,25 +83,23 @@ def analisar_mercado(ativos):
 ⌛ Expiração: <b>5 minutos</b>
 🖱️ CLIQUE <b>{cliques}x</b> NA DIREÇÃO INDICADA
 
-<i>Análise com M1 + M5 + RSI — modo dinâmico</i>
+<i>Confirmação dupla (M1/M5) + RSI filtrado — assertividade máxima</i>
 """
                 enviar_telegram(mensagem)
                 registrar_sinal([str(datetime.datetime.now()), ativo, direcao, rsi, intensidade])
-                ATIVOS_ANALISADOS.add(ativo)
-                return True
+                HISTORICO_ATIVOS[ativo] = agora
+                sinais_enviados += 1
 
         except Exception as e:
             registrar_sinal([str(datetime.datetime.now()), ativo, "ERRO", "-", "-", str(e)])
             continue
 
-    return False
+    return sinais_enviados
 
-print("🚀 BOT ATUALIZADO — ENVIANDO MODERADO, FORTE, EXTREMO — 24/7 MONITORAMENTO")
+print("📡 BOT AGRESSIVO ATIVO — ESCANEANDO TODOS OS PARES EM BUSCA DE SINAIS REAIS — 24H")
 
 while True:
-    if len(ATIVOS_ANALISADOS) > 25:
-        ATIVOS_ANALISADOS.clear()
-    enviado = analisar_mercado(MOEDAS_FOREX)
-    if not enviado:
-        enviar_telegram("📡 Nenhum sinal confiável agora. Monitorando em tempo real...")
+    sinais = analisar_todos_os_ativos(MOEDAS_FOREX)
+    if sinais == 0:
+        enviar_telegram("🚫 Nenhum sinal confirmado neste momento. Mercado monitorado em tempo real.")
     time.sleep(60)
